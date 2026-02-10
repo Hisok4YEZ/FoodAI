@@ -28,3 +28,32 @@ SUPABASE_ANON_KEY=...
 ```bash
 pytest -q
 ```
+
+## Retrain manuel du modele
+```bash
+python -m app.ml.retrain --data data/food --epochs 5 --batch-size 16
+```
+
+Le modele est ecrit dans `models/model_food.pth`.
+
+## Automatisation n8n + Admin
+1. Ajouter dans `.env`:
+```env
+ADMIN_TOKEN=ton_token_admin
+SUPABASE_SERVICE_ROLE_KEY=ta_service_role_key
+# optionnel
+SUPABASE_IMAGE_BUCKET=scan-images
+```
+
+2. Exécuter le SQL:
+- `docs/n8n/dish_candidates_schema.sql`
+
+3. Ouvrir l'interface admin:
+- `http://localhost:8000/admin`
+
+4. Importer le workflow n8n template:
+- `docs/n8n/foodai_n8n_workflow_template.json`
+
+Le workflow pousse les candidats vers:
+- `POST /api/admin/candidates/n8n` avec header `X-Admin-Token`.
+

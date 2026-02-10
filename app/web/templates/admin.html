@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodAI Admin - Candidats</title>
+    <link rel="stylesheet" href="/static/css/admin.css?v=__ASSET_VERSION__" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>FoodAI Admin</h1>
+        <p>Validation des images/plats proposes par l'automatisation n8n.</p>
+      </header>
+
+      <section class="auth-box">
+        <label for="adminToken">Admin token (X-Admin-Token)</label>
+        <div class="row">
+          <input id="adminToken" type="password" placeholder="Colle ton token" />
+          <button id="saveTokenBtn">Sauvegarder</button>
+          <button id="refreshBtn">Rafraichir</button>
+        </div>
+      </section>
+
+      <section class="filters">
+        <button data-status="" class="filter active">Tous</button>
+        <button data-status="pending" class="filter">Pending</button>
+        <button data-status="approved" class="filter">Approved</button>
+        <button data-status="rejected" class="filter">Rejected</button>
+      </section>
+
+      <section id="candidatesGrid" class="grid"></section>
+    </main>
+
+    <script src="/static/js/admin.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>

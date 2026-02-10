@@ -20,7 +20,7 @@ try:
     from fastapi.responses import HTMLResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, ValidationError
-    from typing import List, Optional
+    from typing import List, Optional, Dict, Any
     import shutil
     import tempfile
     import uvicorn
@@ -215,22 +215,31 @@ def run_web():
         print("   pip install fastapi uvicorn python-multipart pydantic")
         sys.exit(1)
     
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
     if not SUPABASE_AVAILABLE:
         print("⚠️ Supabase n'est pas installé. Les fonctionnalités d'authentification seront désactivées.")
         print("   Pour activer : pip install supabase")
         supabase: Optional[Client] = None
+        supabase_admin: Optional[Client] = None
     else:
-        # Configuration Supabase
-        SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-        SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-        
         if SUPABASE_URL and SUPABASE_KEY:
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
             print("✅ Supabase connecté")
+            if SUPABASE_SERVICE_KEY:
+                supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+                print("✅ Supabase service role activé pour endpoints admin")
+            else:
+                supabase_admin = supabase
+                print("⚠️ SUPABASE_SERVICE_ROLE_KEY absent: endpoints admin en mode limité")
         else:
             print("⚠️ Variables SUPABASE_URL et SUPABASE_ANON_KEY non définies")
             print("   Les fonctionnalités d'authentification seront désactivées")
             supabase = None
+            supabase_admin = None
     
     from app.core.recipes import RecipeDB
     from app.core.scaling import scale_dish
@@ -334,6 +343,26 @@ def run_web():
         recipe_payload: Optional[RecipeResponse]
         created_at: str
 
+    class CandidateRecipe(BaseModel):
+        name: str
+        servings: int
+        ingredients: List[str]
+        steps: List[str]
+
+    class CandidateIngest(BaseModel):
+        source_keyword: Optional[str] = None
+        dish_name: str
+        servings: int = 2
+        image_url: Optional[str] = None
+        notes: Optional[str] = None
+        recipe: Optional[CandidateRecipe] = None
+        insert_known: bool = False
+
+    class CandidateUpdate(BaseModel):
+        status: Optional[str] = None
+        added_to_training: Optional[bool] = None
+        admin_note: Optional[str] = None
+
     # ============================================
     # HELPERS
     # ============================================
@@ -351,6 +380,40 @@ def run_web():
         if not result.data:
             return None
         return result.data[0]
+
+    def get_admin_client():
+        return supabase_admin if supabase_admin else supabase
+
+    def dish_exists_in_catalog(dish_name: str) -> bool:
+        if not db:
+            return False
+        dish_name_norm = dish_name.strip().lower()
+        if not dish_name_norm:
+            return False
+        for dish in db.dishes:
+            if dish.name.strip().lower() == dish_name_norm or dish.id.strip().lower() == dish_name_norm:
+                return True
+        return False
+
+    ASSET_VERSION = str(int(datetime.now(timezone.utc).timestamp()))
+
+    def render_html_template(template_name: str, extra_replacements: Optional[Dict[str, Any]] = None) -> str:
+        html_path = Path(__file__).parent / "templates" / template_name
+        if not html_path.exists():
+            raise HTTPException(status_code=404, detail=f"Template introuvable: {template_name}")
+
+        html_content = html_path.read_text(encoding="utf-8")
+        replacements: Dict[str, Any] = {
+            "__SUPABASE_URL__": os.getenv("SUPABASE_URL", ""),
+            "__SUPABASE_ANON_KEY__": os.getenv("SUPABASE_ANON_KEY", ""),
+            "__ASSET_VERSION__": ASSET_VERSION,
+        }
+        if extra_replacements:
+            replacements.update(extra_replacements)
+
+        for key, value in replacements.items():
+            html_content = html_content.replace(key, str(value))
+        return html_content
 
     async def get_current_user(authorization: str = Header(None)):
         """Extrait l'utilisateur du token JWT"""
@@ -371,6 +434,13 @@ def run_web():
             print(f"Erreur auth: {e}")
             return None
 
+    async def require_admin(x_admin_token: str = Header(None, alias="X-Admin-Token")):
+        if not ADMIN_TOKEN:
+            raise HTTPException(status_code=503, detail="ADMIN_TOKEN non configuré")
+        if not x_admin_token or x_admin_token != ADMIN_TOKEN:
+            raise HTTPException(status_code=401, detail="Non autorisé (admin token)")
+        return True
+
     # ============================================
     # ENDPOINTS
     # ============================================
@@ -378,17 +448,18 @@ def run_web():
     @app.get("/")
     async def root():
         """Page d'accueil - sert l'interface HTML"""
-        html_path = Path(__file__).parent / "templates" / "index.html"
-        if html_path.exists():
-            html_content = html_path.read_text(encoding="utf-8")
-            html_content = html_content.replace("__SUPABASE_URL__", os.getenv("SUPABASE_URL", ""))
-            html_content = html_content.replace("__SUPABASE_ANON_KEY__", os.getenv("SUPABASE_ANON_KEY", ""))
-            return HTMLResponse(content=html_content)
-        return {
-            "message": "Bienvenue sur FoodAI API 🍽️",
-            "status": "ok" if predictor and db else "error",
-            "auth_enabled": supabase is not None
-        }
+        try:
+            return HTMLResponse(content=render_html_template("index.html"))
+        except HTTPException:
+            return {
+                "message": "Bienvenue sur FoodAI API 🍽️",
+                "status": "ok" if predictor and db else "error",
+                "auth_enabled": supabase is not None
+            }
+
+    @app.get("/admin")
+    async def admin_page():
+        return HTMLResponse(content=render_html_template("admin.html"))
 
     @app.get("/health")
     async def health_check():
@@ -764,6 +835,90 @@ def run_web():
                 for d in db.dishes
             ]
         }
+
+    # ============================================
+    # ENDPOINTS ADMIN / N8N
+    # ============================================
+
+    @app.post("/api/admin/candidates/n8n")
+    async def ingest_candidate_from_n8n(
+        payload: CandidateIngest,
+        _admin_ok = Depends(require_admin)
+    ):
+        """Ingestion candidate dish depuis n8n (image + recette proposée)."""
+        admin_client = get_admin_client()
+        if not admin_client:
+            raise HTTPException(status_code=503, detail="Supabase non configuré")
+
+        dish_name = payload.dish_name.strip()
+        if not dish_name:
+            raise HTTPException(status_code=400, detail="dish_name requis")
+
+        is_new = not dish_exists_in_catalog(dish_name)
+        if not is_new and not payload.insert_known:
+            return {
+                "message": "Plat déjà connu: candidat ignoré",
+                "is_new_dish": False,
+                "candidate": None,
+            }
+
+        data = {
+            "dish_name": dish_name,
+            "source_keyword": payload.source_keyword,
+            "servings": payload.servings,
+            "image_url": payload.image_url,
+            "notes": payload.notes,
+            "recipe_payload": payload.recipe.model_dump() if payload.recipe else None,
+            "is_new_dish": is_new,
+            "status": "pending",
+            "added_to_training": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        try:
+            result = admin_client.table("dish_candidates").insert(data).execute()
+            return {"message": "Candidate ajouté", "is_new_dish": is_new, "candidate": (result.data or [None])[0]}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/admin/candidates")
+    async def list_admin_candidates(
+        status: Optional[str] = None,
+        limit: int = 200,
+        _admin_ok = Depends(require_admin)
+    ):
+        admin_client = get_admin_client()
+        if not admin_client:
+            raise HTTPException(status_code=503, detail="Supabase non configuré")
+
+        try:
+            query = admin_client.table("dish_candidates").select("*").order("created_at", desc=True).limit(limit)
+            if status:
+                query = query.eq("status", status)
+            result = query.execute()
+            return result.data or []
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.patch("/api/admin/candidates/{candidate_id}")
+    async def update_admin_candidate(
+        candidate_id: str,
+        updates: CandidateUpdate = Body(...),
+        _admin_ok = Depends(require_admin)
+    ):
+        admin_client = get_admin_client()
+        if not admin_client:
+            raise HTTPException(status_code=503, detail="Supabase non configuré")
+
+        update_data = updates.model_dump(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
+
+        try:
+            result = admin_client.table("dish_candidates").update(update_data).eq("id", candidate_id).execute()
+            return {"message": "Candidate mis à jour", "candidate": (result.data or [None])[0]}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     print("🚀 Démarrage du serveur FastAPI...")
     print("📍 L'API sera accessible sur : http://localhost:8000")

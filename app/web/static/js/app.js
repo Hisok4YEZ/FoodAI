@@ -601,15 +601,38 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }
 
         const recipe = currentResponse.recipe;
+        const requestedServings = Math.max(
+          1,
+          parseInt(document.getElementById("servings").value) || recipe.servings || 1,
+        );
+        const baseServings = Number(recipe.servings) > 0 ? Number(recipe.servings) : 1;
+        const scaleFactor = requestedServings / baseServings;
+
+        function formatScaledQuantity(value, unit) {
+          const numericValue = Number(value);
+          if (!Number.isFinite(numericValue)) return "";
+          const scaled = numericValue * scaleFactor;
+          const rounded =
+            scaled >= 10
+              ? scaled.toFixed(1)
+              : scaled >= 1
+                ? scaled.toFixed(2)
+                : scaled.toFixed(3);
+          const clean = Number(rounded).toString();
+          return unit ? `${clean} ${unit}` : clean;
+        }
+
         let recipeText = `╔════════════════════════════════════════╗\n`;
         recipeText += `║  ${recipe.name.toUpperCase()}\n`;
-        recipeText += `║  Servings: ${recipe.servings}\n`;
+        recipeText += `║  Servings: ${requestedServings}\n`;
         recipeText += `╚════════════════════════════════════════╝\n\n`;
 
         recipeText += "📦 INGREDIENTS:\n";
         recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
         recipe.ingredients.forEach((ing) => {
-          recipeText += `  • ${ing.formatted} ${ing.display}\n`;
+          const formattedQty = formatScaledQuantity(ing.qty, ing.unit);
+          const qtyText = formattedQty || ing.formatted || "";
+          recipeText += `  • ${qtyText} ${ing.display}\n`;
         });
 
         recipeText += "\n🔬 PROCEDURE:\n";
