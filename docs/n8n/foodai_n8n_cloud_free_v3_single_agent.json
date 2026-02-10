@@ -1,0 +1,165 @@
+{
+  "name": "FoodAI Ingestion v3 (Single AI Agent + Retrain)",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        }
+      },
+      "id": "Cron",
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [180, 280]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "foodaiBaseUrl",
+              "value": "https://YOUR-PUBLIC-FOODAI-URL.ngrok-free.app"
+            },
+            {
+              "name": "adminToken",
+              "value": "YOUR_ADMIN_TOKEN"
+            },
+            {
+              "name": "openaiApiKey",
+              "value": "YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "agentPrompt",
+              "value": "You are a food-data scouting agent. Suggest ONE dish candidate likely missing from a small home dataset. Return STRICT JSON only with this schema: {\"source_keyword\": string, \"dish_name\": string, \"notes\": string, \"servings\": number, \"image_url\": string|null, \"recipe\": {\"name\": string, \"servings\": number, \"ingredients\": string[], \"steps\": string[]}}. No markdown, no extra text. Use servings=2 by default."
+            }
+          ]
+        }
+      },
+      "id": "SetConfig",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [400, 280]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/responses",
+        "method": "POST",
+        "responseFormat": "json",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.openaiApiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4.1-mini\",\n  \"input\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You return strict JSON only.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{$json.agentPrompt}}\n    }\n  ]\n}"
+      },
+      "id": "OpenAI",
+      "name": "OpenAI Single Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 280]
+    },
+    {
+      "parameters": {
+        "functionCode": "const raw = $json.output_text || $json.output?.[0]?.content?.[0]?.text || '';\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch (e) { throw new Error('Agent did not return valid JSON: ' + raw); }\nconst cfg = $item(0).$node['Set Config'].json;\nreturn [{\n  json: {\n    source_keyword: parsed.source_keyword || null,\n    dish_name: parsed.dish_name,\n    notes: parsed.notes || '',\n    servings: parsed.servings || parsed.recipe?.servings || 2,\n    image_url: parsed.image_url || null,\n    recipe: parsed.recipe || null,\n    foodaiBaseUrl: cfg.foodaiBaseUrl,\n    adminToken: cfg.adminToken\n  }\n}];"
+      },
+      "id": "BuildPayload",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 280]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.foodaiBaseUrl}}/api/admin/candidates/n8n",
+        "method": "POST",
+        "responseFormat": "json",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Admin-Token",
+              "value": "={{$json.adminToken}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ {\n  source_keyword: $json.source_keyword,\n  dish_name: $json.dish_name,\n  servings: $json.servings,\n  image_url: $json.image_url,\n  notes: $json.notes,\n  recipe: $json.recipe,\n  auto_approve: true\n} }}"
+      },
+      "id": "PushCandidate",
+      "name": "Push Candidate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.foodaiBaseUrl}}/api/admin/retrain/incremental",
+        "method": "POST",
+        "responseFormat": "json",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Admin-Token",
+              "value": "={{$json.adminToken}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"limit_candidates\": 50,\n  \"epochs\": 2,\n  \"replay_per_class\": 20\n}"
+      },
+      "id": "TriggerRetrain",
+      "name": "Trigger Retrain",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1380, 280]
+    }
+  ],
+  "connections": {
+    "Cron": {
+      "main": [[{ "node": "Set Config", "type": "main", "index": 0 }]]
+    },
+    "Set Config": {
+      "main": [[{ "node": "OpenAI Single Agent", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Single Agent": {
+      "main": [[{ "node": "Build Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Payload": {
+      "main": [[{ "node": "Push Candidate", "type": "main", "index": 0 }]]
+    },
+    "Push Candidate": {
+      "main": [[{ "node": "Trigger Retrain", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "foodai-cloud-free-v3-single-agent-retrain"
+}
