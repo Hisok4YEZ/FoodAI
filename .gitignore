@@ -1,0 +1,18 @@
+# Local env
+.env
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Large local assets
+/data/
+/models/
+
+# Local docs output
+RAPPORT_MODIFICATIONS.pdf
