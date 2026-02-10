@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodAI Lab 🔬</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-main: #0a0e27;
+        --bg-card: #151934;
+        --accent-primary: #00ffa3;
+        --accent-secondary: #ff3d71;
+        --accent-yellow: #ffd600;
+        --text-primary: #ffffff;
+        --text-secondary: #8b92b2;
+        --border: #2a2f4f;
+        --glow: rgba(0, 255, 163, 0.3);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Space Mono", monospace;
+        background: var(--bg-main);
+        color: var(--text-primary);
+        overflow-x: hidden;
+        line-height: 1.6;
+      }
+
+      /* Animated gradient background */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background:
+          radial-gradient(
+            circle at 20% 50%,
+            rgba(0, 255, 163, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 80% 80%,
+            rgba(255, 61, 113, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 50% 20%,
+            rgba(255, 214, 0, 0.08) 0%,
+            transparent 50%
+          );
+        animation: gradientShift 15s ease infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      @keyframes gradientShift {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        33% {
+          transform: translate(30px, -30px) scale(1.1);
+        }
+        66% {
+          transform: translate(-30px, 30px) scale(0.9);
+        }
+      }
+
+      /* Grain overlay */
+      body::after {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="4"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity="0.05"/></svg>');
+        pointer-events: none;
+        z-index: 1;
+        mix-blend-mode: overlay;
+      }
+
+      .container {
+        position: relative;
+        z-index: 2;
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+        min-height: 100vh;
+      }
+
+      /* Header */
+      header {
+        margin-bottom: 3rem;
+        animation: slideDown 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .logo {
+        font-family: "Syne", sans-serif;
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(
+          135deg,
+          var(--accent-primary),
+          var(--accent-yellow)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.03em;
+        text-shadow: 0 0 40px var(--glow);
+        margin-bottom: 0.5rem;
+        position: relative;
+        display: inline-block;
+      }
+
+      .logo::after {
+        content: "🔬";
+        position: absolute;
+        top: -10px;
+        right: -50px;
+        font-size: 2rem;
+        animation: float 3s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0px) rotate(0deg);
+        }
+        50% {
+          transform: translateY(-10px) rotate(5deg);
+        }
+      }
+
+      .tagline {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        border-left: 3px solid var(--accent-primary);
+        padding-left: 1rem;
+      }
+
+      /* Status bar */
+      .status-bar {
+        padding: 1rem 1.5rem;
+        background: var(--bg-card);
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent-primary);
+        box-shadow: 0 0 20px var(--accent-primary);
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.8;
+        }
+      }
+
+      .status-bar.error .status-indicator {
+        background: var(--accent-secondary);
+        box-shadow: 0 0 20px var(--accent-secondary);
+      }
+
+      .status-bar.hidden {
+        display: none;
+      }
+
+      /* Main grid */
+      .main-grid {
+        display: grid;
+        grid-template-columns: 500px 1fr;
+        gap: 2rem;
+        animation: fadeIn 0.8s ease 0.4s backwards;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* Upload section */
+      .upload-section {
+        background: var(--bg-card);
+        border: 2px solid var(--border);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .upload-section::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          var(--accent-primary) 0%,
+          transparent 70%
+        );
+        opacity: 0;
+        transition: opacity 0.5s;
+        pointer-events: none;
+      }
+
+      .upload-section:hover::before {
+        opacity: 0.03;
+      }
+
+      .btn-upload {
+        width: 100%;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, var(--accent-primary), #00cc82);
+        color: var(--bg-main);
+        font-family: "Syne", sans-serif;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: 0 4px 20px rgba(0, 255, 163, 0.3);
+      }
+
+      .btn-upload::before {
+        content: "📸";
+        margin-right: 0.5rem;
+        font-size: 1.3rem;
+      }
+
+      .btn-upload::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition:
+          width 0.6s,
+          height 0.6s;
+      }
+
+      .btn-upload:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 255, 163, 0.5);
+      }
+
+      .btn-upload:active::after {
+        width: 300px;
+        height: 300px;
+      }
+
+      .btn-upload:disabled {
+        background: var(--border);
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      /* Image preview */
+      .image-container {
+        margin-top: 2rem;
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        aspect-ratio: 1;
+        background: linear-gradient(
+          135deg,
+          var(--border) 0%,
+          var(--bg-main) 100%
+        );
+        border: 2px solid var(--border);
+      }
+
+      .image-preview {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      .image-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        animation: zoomIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      @keyframes zoomIn {
+        from {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 14, 39, 0.95);
+        backdrop-filter: blur(10px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .loading-overlay.active {
+        display: flex;
+        animation: fadeIn 0.3s;
+      }
+
+      .spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid var(--border);
+        border-top: 4px solid var(--accent-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loading-text {
+        font-family: "Syne", sans-serif;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--accent-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      /* Controls */
+      .controls {
+        margin-top: 2rem;
+        background: rgba(42, 47, 79, 0.3);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+      }
+
+      .controls h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--accent-yellow);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 1.5rem;
+      }
+
+      .control-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .control-group:last-child {
+        margin-bottom: 0;
+      }
+
+      .control-label {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .control-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--bg-main);
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-family: "Space Mono", monospace;
+        font-size: 1rem;
+        transition: all 0.3s;
+      }
+
+      .control-input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px rgba(0, 255, 163, 0.1);
+      }
+
+      /* Results section */
+      .results-section {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+      }
+
+      .predictions-card {
+        background: var(--bg-card);
+        border: 2px solid var(--border);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .predictions-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-yellow),
+          var(--accent-secondary)
+        );
+      }
+
+      .card-title {
+        font-family: "Syne", sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--accent-primary);
+        margin-bottom: 1.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .prediction-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        background: rgba(42, 47, 79, 0.3);
+        border-left: 3px solid transparent;
+        border-radius: 8px;
+        transition: all 0.3s;
+        animation: slideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      }
+
+      .prediction-item:nth-child(1) {
+        animation-delay: 0.1s;
+        border-left-color: var(--accent-primary);
+      }
+
+      .prediction-item:nth-child(2) {
+        animation-delay: 0.2s;
+        border-left-color: var(--accent-yellow);
+      }
+
+      .prediction-item:nth-child(3) {
+        animation-delay: 0.3s;
+        border-left-color: var(--accent-secondary);
+      }
+
+      .prediction-item:hover {
+        background: rgba(42, 47, 79, 0.6);
+        transform: translateX(5px);
+      }
+
+      .prediction-label {
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .prediction-confidence {
+        font-family: "Syne", sans-serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--accent-primary);
+      }
+
+      .confidence-bar {
+        width: 60px;
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        margin-top: 0.25rem;
+        overflow: hidden;
+      }
+
+      .confidence-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-yellow)
+        );
+        border-radius: 3px;
+        transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      /* Recipe output */
+      .recipe-card {
+        background: var(--bg-card);
+        border: 2px solid var(--border);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        min-height: 400px;
+        font-family: "Space Mono", monospace;
+        font-size: 0.9rem;
+        line-height: 1.8;
+        white-space: pre-wrap;
+        overflow-y: auto;
+        position: relative;
+      }
+
+      .recipe-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--accent-secondary),
+          var(--accent-yellow)
+        );
+      }
+
+      .recipe-card.placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      .recipe-card::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .recipe-card::-webkit-scrollbar-track {
+        background: var(--bg-main);
+        border-radius: 4px;
+      }
+
+      .recipe-card::-webkit-scrollbar-thumb {
+        background: var(--accent-primary);
+        border-radius: 4px;
+      }
+
+      /* Responsive */
+      @media (max-width: 1200px) {
+        .main-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        .logo {
+          font-size: 2.5rem;
+        }
+
+        .upload-section,
+        .predictions-card,
+        .recipe-card {
+          padding: 1.5rem;
+        }
+      }
+
+      input[type="file"] {
+        display: none;
+      }
+
+      /* Success animations */
+      @keyframes successPulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(0, 255, 163, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 20px rgba(0, 255, 163, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(0, 255, 163, 0);
+        }
+      }
+
+      .success-flash {
+        animation: successPulse 0.6s ease-out;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1 class="logo">FoodAI Lab</h1>
+        <p class="tagline">Neural Food Recognition System</p>
+      </header>
+
+      <div class="status-bar hidden" id="statusBar">
+        <div class="status-indicator"></div>
+        <span id="statusText">Connecting to neural network...</span>
+      </div>
+
+      <div class="main-grid">
+        <!-- Left panel -->
+        <div class="upload-section">
+          <button
+            class="btn-upload"
+            id="btnUpload"
+            onclick="document.getElementById('fileInput').click()"
+          >
+            Scan Food Sample
+          </button>
+          <input
+            type="file"
+            id="fileInput"
+            accept="image/*"
+            onchange="handleImageUpload(event)"
+          />
+
+          <div class="image-container">
+            <div class="image-preview" id="imagePreview">
+              <span>No sample loaded</span>
+            </div>
+            <div class="loading-overlay" id="loadingOverlay">
+              <div class="spinner"></div>
+              <div class="loading-text">Analyzing...</div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <h3>⚙️ Parameters</h3>
+
+            <div class="control-group">
+              <label class="control-label" for="servings">Servings</label>
+              <input
+                type="number"
+                id="servings"
+                class="control-input"
+                min="1"
+                max="20"
+                value="2"
+                onchange="refreshRecipeDisplay()"
+              />
+            </div>
+
+            <div class="control-group">
+              <label class="control-label" for="confidence"
+                >Confidence Threshold</label
+              >
+              <input
+                type="number"
+                id="confidence"
+                class="control-input"
+                min="0"
+                max="1"
+                step="0.05"
+                value="0.70"
+                onchange="refreshRecipeDisplay()"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Right panel -->
+        <div class="results-section">
+          <div class="predictions-card">
+            <h2 class="card-title">🎯 Neural Predictions</h2>
+            <div id="topkResults">
+              <div
+                style="
+                  color: var(--text-secondary);
+                  text-align: center;
+                  padding: 2rem;
+                "
+              >
+                Waiting for sample analysis...
+              </div>
+            </div>
+          </div>
+
+          <div class="recipe-card placeholder" id="recipeOutput">
+            Recipe data will appear here after successful analysis
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = window.location.origin;
+      let currentResponse = null;
+
+      async function checkBackendHealth() {
+        try {
+          const response = await fetch(`${API_URL}/health`);
+          const data = await response.json();
+          if (data.status === "healthy") {
+            showStatus(
+              `✅ System online • ${data.num_dishes} dishes in database`,
+              "success",
+            );
+          } else {
+            showStatus(
+              "⚠️ System partially online • Model not loaded",
+              "error",
+            );
+          }
+        } catch (error) {
+          showStatus("❌ Connection failed • Backend offline", "error");
+        }
+      }
+
+      function showStatus(message, type = "info") {
+        const statusBar = document.getElementById("statusBar");
+        const statusText = document.getElementById("statusText");
+        statusText.textContent = message;
+        statusBar.className = `status-bar ${type}`;
+        statusBar.classList.remove("hidden");
+
+        if (type === "success") {
+          setTimeout(() => {
+            statusBar.classList.add("hidden");
+          }, 4000);
+        }
+      }
+
+      async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const preview = document.getElementById("imagePreview");
+          preview.innerHTML = `<img src="${e.target.result}" alt="Food sample">`;
+        };
+        reader.readAsDataURL(file);
+
+        await predictImage(file);
+      }
+
+      async function predictImage(file) {
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        const btnUpload = document.getElementById("btnUpload");
+
+        try {
+          loadingOverlay.classList.add("active");
+          btnUpload.disabled = true;
+
+          const formData = new FormData();
+          formData.append("file", file);
+          const servings = parseInt(document.getElementById("servings").value);
+          const minConfidence = parseFloat(
+            document.getElementById("confidence").value,
+          );
+
+          const response = await fetch(
+            `${API_URL}/api/predict?servings=${servings}&min_confidence=${minConfidence}`,
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+
+          if (!response.ok) {
+            let errorMsg = "Analysis failed";
+            try {
+              const error = await response.json();
+              errorMsg = error.detail || errorMsg;
+            } catch {
+              const text = await response.text();
+              errorMsg = text.substring(0, 200);
+            }
+            throw new Error(errorMsg);
+          }
+
+          const data = await response.json();
+          currentResponse = data;
+
+          displayResults(data);
+          showStatus("✅ Analysis complete", "success");
+
+          // Success animation
+          document
+            .querySelector(".predictions-card")
+            .classList.add("success-flash");
+          setTimeout(() => {
+            document
+              .querySelector(".predictions-card")
+              .classList.remove("success-flash");
+          }, 600);
+        } catch (error) {
+          console.error("Error:", error);
+          showStatus(`❌ Error: ${error.message}`, "error");
+
+          const output = document.getElementById("recipeOutput");
+          output.className = "recipe-card";
+          output.textContent = `⚠️ Analysis error:\n${error.message}\n\nPlease check that the backend is running.`;
+        } finally {
+          loadingOverlay.classList.remove("active");
+          btnUpload.disabled = false;
+        }
+      }
+
+      function displayResults(data) {
+        const topkResults = document.getElementById("topkResults");
+
+        let html = "";
+        data.predictions.forEach((pred, idx) => {
+          const percentage = (pred.confidence * 100).toFixed(1);
+          html += `
+                    <div class="prediction-item" style="animation-delay: ${idx * 0.1}s">
+                        <div>
+                            <div class="prediction-label">${pred.label}</div>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                        <div class="prediction-confidence">${percentage}%</div>
+                    </div>
+                `;
+        });
+
+        topkResults.innerHTML = html;
+        refreshRecipeDisplay();
+      }
+
+      function refreshRecipeDisplay() {
+        if (!currentResponse) return;
+
+        const output = document.getElementById("recipeOutput");
+        const minConfidence = parseFloat(
+          document.getElementById("confidence").value,
+        );
+        const bestPrediction = currentResponse.predictions[0];
+
+        if (
+          currentResponse.warning ||
+          bestPrediction.confidence < minConfidence
+        ) {
+          output.className = "recipe-card";
+          output.textContent =
+            currentResponse.warning ||
+            `⚠️ Low confidence (${(bestPrediction.confidence * 100).toFixed(1)}% < ${(minConfidence * 100).toFixed(0)}%)\n\nSuggestions:\n• Center the dish in frame\n• Use good lighting\n• Simple background\n• Avoid zooming too much\n\nNo recipe data displayed.`;
+          return;
+        }
+
+        if (!currentResponse.recipe) {
+          output.className = "recipe-card";
+          output.textContent =
+            "⚠️ Dish predicted but not found in database.\nCheck that class ID matches recipes.json.";
+          return;
+        }
+
+        const recipe = currentResponse.recipe;
+        let recipeText = `╔════════════════════════════════════════╗\n`;
+        recipeText += `║  ${recipe.name.toUpperCase()}\n`;
+        recipeText += `║  Servings: ${recipe.servings}\n`;
+        recipeText += `╚════════════════════════════════════════╝\n\n`;
+
+        recipeText += "📦 INGREDIENTS:\n";
+        recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        recipe.ingredients.forEach((ing) => {
+          recipeText += `  • ${ing.formatted} ${ing.display}\n`;
+        });
+
+        recipeText += "\n🔬 PROCEDURE:\n";
+        recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        recipe.steps.forEach((step, index) => {
+          recipeText += `  ${index + 1}. ${step}\n`;
+        });
+
+        output.className = "recipe-card";
+        output.textContent = recipeText;
+      }
+
+      window.addEventListener("load", () => {
+        checkBackendHealth();
+      });
+    </script>
+  </body>
+</html>

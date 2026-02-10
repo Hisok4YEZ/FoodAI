@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodAI Lab - Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="auth-overlay" id="authOverlay">
+      <div class="auth-modal">
+        <h2>Bienvenue sur FoodAI Lab</h2>
+        <p>
+          Connectez-vous pour sauvegarder votre historique et vos préférences
+          alimentaires
+        </p>
+        <button class="btn-google" onclick="signInWithGoogle()">
+          Continuer avec Google
+        </button>
+      </div>
+    </div>
+
+    <div class="user-menu" id="userMenu" style="display: none">
+      <button class="user-button" onclick="toggleUserDropdown()">
+        <span class="user-avatar" id="userAvatar">U</span>
+        <span id="userName">Utilisateur</span>
+      </button>
+      <div class="user-dropdown" id="userDropdown">
+        <button class="dropdown-item" onclick="openPreferences()">
+          Preferences
+        </button>
+        <button class="dropdown-item" onclick="openHistory()">Historique</button>
+        <button class="dropdown-item" onclick="openFavorites()">Favoris</button>
+        <button class="dropdown-item" onclick="signOut()">Deconnexion</button>
+      </div>
+    </div>
+
+    <div class="preferences-modal" id="preferencesModal">
+      <div class="preferences-content">
+        <div class="preferences-header">
+          <h2 class="preferences-title">Mes preferences</h2>
+          <button class="btn-close" onclick="closePreferences()">×</button>
+        </div>
+        <div class="pref-grid">
+          <div class="pref-field">
+            <label for="prefFirstName">Prenom</label>
+            <input id="prefFirstName" type="text" />
+          </div>
+          <div class="pref-field">
+            <label for="prefLastName">Nom</label>
+            <input id="prefLastName" type="text" />
+          </div>
+        </div>
+        <div class="pref-field">
+          <label for="prefEmail">Email</label>
+          <input id="prefEmail" type="email" readonly />
+        </div>
+        <div class="pref-field" style="margin-top: 0.8rem">
+          <label>Contraintes alimentaires</label>
+          <div class="dietary-tags" id="dietaryTags">
+            <span class="dietary-tag" data-value="vegetarian">Vegetarien</span>
+            <span class="dietary-tag" data-value="vegan">Vegan</span>
+            <span class="dietary-tag" data-value="no_gluten">Sans gluten</span>
+            <span class="dietary-tag" data-value="no_lactose">Sans lactose</span>
+            <span class="dietary-tag" data-value="halal">Halal</span>
+            <span class="dietary-tag" data-value="kosher">Casher</span>
+          </div>
+        </div>
+        <div class="pref-field" style="margin-top: 0.9rem">
+          <label style="display: flex; align-items: center; gap: 0.55rem">
+            <input id="prefImageConsent" type="checkbox" style="width: auto" />
+            Conserver mes images pour ameliorer le modele
+          </label>
+        </div>
+        <button class="btn-save-pref" onclick="savePreferences()">
+          Enregistrer
+        </button>
+      </div>
+    </div>
+
+    <div class="consent-modal" id="consentModal">
+      <div class="consent-content">
+        <h2 class="preferences-title">Consentement des images</h2>
+        <p class="history-meta" style="margin-top: 0.55rem">
+          Souhaites-tu autoriser FoodAI a conserver tes images de scan pour
+          ameliorer l'entrainement du modele ? Tu pourras modifier ce choix a
+          tout moment dans Preferences.
+        </p>
+        <div class="consent-actions">
+          <button class="btn-consent" onclick="submitImageConsent(false)">
+            Refuser
+          </button>
+          <button class="btn-consent primary" onclick="submitImageConsent(true)">
+            Accepter
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="preferences-modal" id="historyModal">
+      <div class="preferences-content">
+        <div class="preferences-header">
+          <h2 class="preferences-title">Historique des scans</h2>
+          <button class="btn-close" onclick="closeHistory()">×</button>
+        </div>
+        <div class="history-list" id="historyList">
+          <div class="history-meta">Chargement...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="preferences-modal" id="favoritesModal">
+      <div class="preferences-content">
+        <div class="preferences-header">
+          <h2 class="preferences-title">Favoris</h2>
+          <button class="btn-close" onclick="closeFavorites()">×</button>
+        </div>
+        <div class="history-list" id="favoritesList">
+          <div class="history-meta">Chargement...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container" id="mainApp" style="display: none">
+      <header>
+        <h1 class="logo">FoodAI Lab</h1>
+        <p class="tagline">Neural Food Recognition System</p>
+      </header>
+
+      <div class="status-bar hidden" id="statusBar">
+        <div class="status-indicator"></div>
+        <span id="statusText">Connecting to neural network...</span>
+      </div>
+
+      <div class="main-grid">
+        <!-- Left panel -->
+        <div class="upload-section">
+          <button
+            class="btn-upload"
+            id="btnUpload"
+            onclick="document.getElementById('fileInput').click()"
+          >
+            Scan Food Sample
+          </button>
+          <input
+            type="file"
+            id="fileInput"
+            accept="image/*"
+            onchange="handleImageUpload(event)"
+          />
+
+          <div class="image-container">
+            <div class="image-preview" id="imagePreview">
+              <span>No sample loaded</span>
+            </div>
+            <div class="loading-overlay" id="loadingOverlay">
+              <div class="spinner"></div>
+              <div class="loading-text">Analyzing...</div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <h3>⚙️ Parameters</h3>
+
+            <div class="control-group">
+              <label class="control-label" for="servings">Servings</label>
+              <input
+                type="number"
+                id="servings"
+                class="control-input"
+                min="1"
+                max="20"
+                value="2"
+                onchange="refreshRecipeDisplay()"
+              />
+            </div>
+
+            <div class="control-group">
+              <label class="control-label" for="confidence"
+                >Confidence Threshold</label
+              >
+              <input
+                type="number"
+                id="confidence"
+                class="control-input"
+                min="0"
+                max="1"
+                step="0.05"
+                value="0.70"
+                onchange="refreshRecipeDisplay()"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Right panel -->
+        <div class="results-section">
+          <div class="predictions-card">
+            <h2 class="card-title">🎯 Neural Predictions</h2>
+            <div id="topkResults">
+              <div
+                style="
+                  color: var(--text-secondary);
+                  text-align: center;
+                  padding: 2rem;
+                "
+              >
+                Waiting for sample analysis...
+              </div>
+            </div>
+          </div>
+
+          <div class="actions-row">
+            <button class="btn-favorite" onclick="saveCurrentAsFavorite()">
+              ⭐ Ajouter aux favoris
+            </button>
+          </div>
+
+          <div class="recipe-card placeholder" id="recipeOutput">
+            Recipe data will appear here after successful analysis
+          </div>
+        </div>
+      </div>
+    </div>
+
+        <script>
+      window.__APP_CONFIG__ = {
+        SUPABASE_URL: "__SUPABASE_URL__",
+        SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
+      };
+    </script>
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>

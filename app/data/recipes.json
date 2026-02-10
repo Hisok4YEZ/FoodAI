@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "dishes": [
+    {
+      "id": "pizza",
+      "name": "Pizza (base simple)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "pate_a_pizza", "display": "Pâte à pizza", "qty": 1, "unit": "piece"},
+        {"name": "sauce_tomate", "display": "Sauce tomate", "qty": 150, "unit": "g"},
+        {"name": "mozzarella", "display": "Mozzarella", "qty": 125, "unit": "g"},
+        {"name": "huile_olive", "display": "Huile d'olive", "qty": 10, "unit": "ml"},
+        {"name": "origan", "display": "Origan", "qty": 1, "unit": "tsp"},
+        {"name": "sel", "display": "Sel", "qty": 2, "unit": "g"}
+      ],
+      "steps": [
+        "Préchauffer le four à 240°C.",
+        "Étaler la pâte sur une plaque.",
+        "Ajouter la sauce tomate, la mozzarella, sel et origan.",
+        "Cuire 8 à 12 minutes.",
+        "Ajouter un filet d'huile d'olive à la sortie du four."
+      ]
+    },
+    {
+      "id": "hamburger",
+      "name": "Hamburger (classique)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "pains_burger", "display": "Pains à burger", "qty": 2, "unit": "piece"},
+        {"name": "steak_hache", "display": "Steaks hachés", "qty": 2, "unit": "piece"},
+        {"name": "fromage", "display": "Fromage (tranches)", "qty": 2, "unit": "piece"},
+        {"name": "salade", "display": "Salade", "qty": 60, "unit": "g"},
+        {"name": "tomate", "display": "Tomate", "qty": 1, "unit": "piece"},
+        {"name": "oignon", "display": "Oignon", "qty": 0.5, "unit": "piece"},
+        {"name": "ketchup", "display": "Ketchup", "qty": 2, "unit": "tbsp"},
+        {"name": "moutarde", "display": "Moutarde", "qty": 1, "unit": "tbsp"},
+        {"name": "sel", "display": "Sel", "qty": 3, "unit": "g"},
+        {"name": "poivre", "display": "Poivre", "qty": 1, "unit": "g"}
+      ],
+      "steps": [
+        "Cuire les steaks (poêle ou grill), saler et poivrer.",
+        "Ajouter le fromage sur les steaks en fin de cuisson pour le faire fondre.",
+        "Toaster légèrement les pains.",
+        "Monter le burger : sauces, salade, tomate, oignon, steak, refermer."
+      ]
+    },
+    {
+      "id": "ramen",
+      "name": "Ramen (bouillon rapide)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "nouilles_ramen", "display": "Nouilles ramen", "qty": 200, "unit": "g"},
+        {"name": "bouillon", "display": "Bouillon (volaille/légumes)", "qty": 800, "unit": "ml"},
+        {"name": "sauce_soja", "display": "Sauce soja", "qty": 30, "unit": "ml"},
+        {"name": "ail", "display": "Ail", "qty": 2, "unit": "piece"},
+        {"name": "gingembre", "display": "Gingembre", "qty": 10, "unit": "g"},
+        {"name": "oeufs", "display": "Œufs", "qty": 2, "unit": "piece"},
+        {"name": "oignon_vert", "display": "Oignon vert", "qty": 20, "unit": "g"}
+      ],
+      "steps": [
+        "Chauffer le bouillon avec ail, gingembre et sauce soja.",
+        "Cuire les œufs (mollets si possible).",
+        "Cuire les nouilles à part puis égoutter.",
+        "Assembler : nouilles + bouillon + œuf + oignon vert."
+      ]
+    },
+    {
+      "id": "spaghetti_bolognese",
+      "name": "Spaghetti bolognaise",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "spaghetti", "display": "Spaghetti", "qty": 200, "unit": "g"},
+        {"name": "boeuf_hache", "display": "Bœuf haché", "qty": 200, "unit": "g"},
+        {"name": "coulis_tomate", "display": "Coulis de tomate", "qty": 250, "unit": "g"},
+        {"name": "oignon", "display": "Oignon", "qty": 0.5, "unit": "piece"},
+        {"name": "ail", "display": "Ail", "qty": 1, "unit": "piece"},
+        {"name": "huile_olive", "display": "Huile d'olive", "qty": 10, "unit": "ml"},
+        {"name": "sel", "display": "Sel", "qty": 3, "unit": "g"},
+        {"name": "poivre", "display": "Poivre", "qty": 1, "unit": "g"}
+      ],
+      "steps": [
+        "Cuire les spaghetti dans l'eau salée.",
+        "Faire revenir oignon et ail dans l'huile d'olive.",
+        "Ajouter le bœuf haché et cuire 5 minutes.",
+        "Ajouter le coulis de tomate, laisser mijoter 10 minutes.",
+        "Mélanger avec les pâtes, servir."
+      ]
+    },
+    {
+      "id": "caesar_salad",
+      "name": "Salade César",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "salade_romaine", "display": "Salade romaine", "qty": 250, "unit": "g"},
+        {"name": "poulet", "display": "Blanc de poulet", "qty": 200, "unit": "g"},
+        {"name": "croutons", "display": "Croûtons", "qty": 60, "unit": "g"},
+        {"name": "parmesan", "display": "Parmesan", "qty": 30, "unit": "g"},
+        {"name": "sauce_cesar", "display": "Sauce César", "qty": 60, "unit": "ml"},
+        {"name": "sel", "display": "Sel", "qty": 2, "unit": "g"},
+        {"name": "poivre", "display": "Poivre", "qty": 1, "unit": "g"}
+      ],
+      "steps": [
+        "Cuire le poulet puis le couper en lamelles.",
+        "Laver et couper la salade.",
+        "Ajouter croûtons, parmesan et poulet.",
+        "Assaisonner avec la sauce César, sel et poivre."
+      ]
+    },
+    {
+      "id": "fried_rice",
+      "name": "Riz sauté (fried rice)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "riz_cuit", "display": "Riz cuit (idéalement froid)", "qty": 400, "unit": "g"},
+        {"name": "oeufs", "display": "Œufs", "qty": 2, "unit": "piece"},
+        {"name": "petits_pois", "display": "Petits pois", "qty": 120, "unit": "g"},
+        {"name": "carotte", "display": "Carotte", "qty": 1, "unit": "piece"},
+        {"name": "sauce_soja", "display": "Sauce soja", "qty": 30, "unit": "ml"},
+        {"name": "huile", "display": "Huile (neutre)", "qty": 15, "unit": "ml"},
+        {"name": "sel", "display": "Sel", "qty": 2, "unit": "g"}
+      ],
+      "steps": [
+        "Battre les œufs et les brouiller rapidement dans une poêle chaude, réserver.",
+        "Faire revenir carotte et petits pois 3-4 minutes.",
+        "Ajouter le riz, bien mélanger et faire sauter 3-5 minutes.",
+        "Ajouter sauce soja et œufs, mélanger, ajuster en sel."
+      ]
+    },
+    {
+      "id": "omelette",
+      "name": "Omelette (simple)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "oeufs", "display": "Œufs", "qty": 4, "unit": "piece"},
+        {"name": "beurre", "display": "Beurre", "qty": 20, "unit": "g"},
+        {"name": "sel", "display": "Sel", "qty": 2, "unit": "g"},
+        {"name": "poivre", "display": "Poivre", "qty": 1, "unit": "g"}
+      ],
+      "steps": [
+        "Battre les œufs avec sel et poivre.",
+        "Faire fondre le beurre à feu moyen.",
+        "Verser les œufs, cuire 2-3 minutes en ramenant les bords vers le centre.",
+        "Plier et servir."
+      ]
+    },
+    {
+      "id": "sushi",
+      "name": "Sushi (maki simple)",
+      "servings_default": 2,
+      "ingredients": [
+        {"name": "riz_sushi", "display": "Riz à sushi (cru)", "qty": 200, "unit": "g"},
+        {"name": "vinaigre_riz", "display": "Vinaigre de riz", "qty": 30, "unit": "ml"},
+        {"name": "sucre", "display": "Sucre", "qty": 10, "unit": "g"},
+        {"name": "sel", "display": "Sel", "qty": 3, "unit": "g"},
+        {"name": "nori", "display": "Feuilles de nori", "qty": 4, "unit": "piece"},
+        {"name": "saumon", "display": "Saumon (ou thon)", "qty": 200, "unit": "g"},
+        {"name": "concombre", "display": "Concombre", "qty": 0.5, "unit": "piece"}
+      ],
+      "steps": [
+        "Cuire le riz, puis l'assaisonner avec vinaigre de riz + sucre + sel.",
+        "Étaler une feuille de nori, ajouter une couche de riz.",
+        "Ajouter saumon et concombre, rouler serré.",
+        "Couper en tronçons, servir."
+      ]
+    },
+    {
+      "id": "ice_cream",
+      "name": "Glace (base vanille sans sorbetière)",
+      "servings_default": 4,
+      "ingredients": [
+        {"name": "creme_liquide", "display": "Crème liquide entière", "qty": 400, "unit": "ml"},
+        {"name": "lait_concentre", "display": "Lait concentré sucré", "qty": 250, "unit": "g"},
+        {"name": "vanille", "display": "Extrait de vanille", "qty": 2, "unit": "tsp"}
+      ],
+      "steps": [
+        "Monter la crème très froide en chantilly.",
+        "Incorporer délicatement le lait concentré et la vanille.",
+        "Mettre au congélateur 6 heures minimum."
+      ]
+    },
+    {
+      "id": "chocolate_cake",
+      "name": "Gâteau au chocolat",
+      "servings_default": 6,
+      "ingredients": [
+        {"name": "chocolat_noir", "display": "Chocolat noir", "qty": 200, "unit": "g"},
+        {"name": "beurre", "display": "Beurre", "qty": 120, "unit": "g"},
+        {"name": "sucre", "display": "Sucre", "qty": 120, "unit": "g"},
+        {"name": "oeufs", "display": "Œufs", "qty": 3, "unit": "piece"},
+        {"name": "farine", "display": "Farine", "qty": 80, "unit": "g"},
+        {"name": "levure", "display": "Levure chimique", "qty": 5, "unit": "g"}
+      ],
+      "steps": [
+        "Préchauffer le four à 180°C.",
+        "Faire fondre chocolat et beurre.",
+        "Ajouter sucre, puis œufs un à un.",
+        "Incorporer farine et levure.",
+        "Cuire 18 à 25 minutes selon le four."
+      ]
+    }
+  ]
+}
