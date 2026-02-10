@@ -27,6 +27,16 @@
         <button data-status="pending" class="filter">Pending</button>
         <button data-status="approved" class="filter">Approved</button>
         <button data-status="rejected" class="filter">Rejected</button>
+        <button data-status="trained" class="filter">Trained</button>
+      </section>
+
+      <section class="auth-box">
+        <label>Retrain incrémental (batch approuvé)</label>
+        <div class="row">
+          <button id="retrainBtn">Lancer retrain</button>
+          <button id="refreshRetrainBtn">Statut retrain</button>
+        </div>
+        <pre id="retrainStatus" class="retrain-status">Aucun job lancé.</pre>
       </section>
 
       <section id="candidatesGrid" class="grid"></section>

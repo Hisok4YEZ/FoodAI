@@ -4,6 +4,9 @@ const TOKEN_KEY = "foodai_admin_token";
 const tokenInput = document.getElementById("adminToken");
 const saveTokenBtn = document.getElementById("saveTokenBtn");
 const refreshBtn = document.getElementById("refreshBtn");
+const retrainBtn = document.getElementById("retrainBtn");
+const refreshRetrainBtn = document.getElementById("refreshRetrainBtn");
+const retrainStatus = document.getElementById("retrainStatus");
 const grid = document.getElementById("candidatesGrid");
 const filterButtons = Array.from(document.querySelectorAll(".filter"));
 
@@ -104,12 +107,42 @@ async function updateCandidate(id, status, addedToTraining) {
 
 window.updateCandidate = updateCandidate;
 
+async function loadRetrainStatus() {
+  try {
+    const status = await api("/api/admin/retrain/status");
+    retrainStatus.textContent = JSON.stringify(status, null, 2);
+  } catch (err) {
+    retrainStatus.textContent = `Erreur statut retrain: ${err.message}`;
+  }
+}
+
+async function triggerIncrementalRetrain() {
+  try {
+    retrainStatus.textContent = "Lancement du retrain en cours...";
+    const result = await api("/api/admin/retrain/incremental", {
+      method: "POST",
+      body: JSON.stringify({
+        limit_candidates: 50,
+        epochs: 2,
+        replay_per_class: 20,
+      }),
+    });
+    retrainStatus.textContent = JSON.stringify(result, null, 2);
+    await loadCandidates();
+    await loadRetrainStatus();
+  } catch (err) {
+    retrainStatus.textContent = `Erreur lancement retrain: ${err.message}`;
+  }
+}
+
 saveTokenBtn.addEventListener("click", () => {
   setToken(tokenInput.value.trim());
   loadCandidates();
 });
 
 refreshBtn.addEventListener("click", loadCandidates);
+retrainBtn.addEventListener("click", triggerIncrementalRetrain);
+refreshRetrainBtn.addEventListener("click", loadRetrainStatus);
 
 filterButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -124,7 +157,9 @@ filterButtons.forEach((btn) => {
   tokenInput.value = getToken();
   if (getToken()) {
     loadCandidates();
+    loadRetrainStatus();
   } else {
     grid.innerHTML = `<div class="empty">Renseigne d'abord l'admin token.</div>`;
+    retrainStatus.textContent = "Renseigne d'abord l'admin token.";
   }
 })();
