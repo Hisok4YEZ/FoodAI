@@ -1,87 +1,150 @@
 # Rapport des modifications FoodAI
 
-Date: 2026-02-09
+Date de mise à jour: 2026-02-18
+Projet: `/Users/yunes/Documents/New project/AM1_projet`
+Branche: `feature/leo`
 
-## 1) Correctifs authentification Google / Supabase
-- Injection des variables Supabase depuis le backend vers le HTML (suppression de clé tronquée en dur).
-- Gestion robuste du callback OAuth:
-  - échange `code -> session` avec `exchangeCodeForSession`
-  - fallback hash (`access_token`, `refresh_token`) avec `setSession`
-- Stabilisation de la mise à jour UI après login/logout.
-- Nettoyage de l'URL après callback OAuth.
+## 1) Objectif de cette passe
+Stabiliser l'application web sur une version fonctionnelle et conserver les fonctionnalités produit clés:
+- authentification Google via Supabase
+- historique utilisateur
+- favoris utilisateur
+- affichage recette
+- mise à jour dynamique des portions en UI
 
-Fichiers concernés:
-- `app/web/server.py` (anciennement `app/week6/gui.py`)
-- `app/web/web_interface.html` (anciennement `app/week6/web_interface.html`)
+Cette passe a volontairement remis de côté les ajouts d'automatisation avancée pour revenir à une base stable et exploitable.
 
-## 2) Zone utilisateur et préférences
-- Ajout d'une zone utilisateur en haut à droite.
-- Ajout d'un menu utilisateur:
-  - Préférences
-  - Historique
-  - Favoris
-  - Déconnexion
-- Ajout d'une modal Préférences (prénom, nom, email, restrictions alimentaires).
-- Connexion des actions UI aux endpoints backend du profil.
+---
 
-Fichier concerné:
-- `app/web/web_interface.html`
+## 2) Synthèse des actions effectuées
+### 2.1 Retour à une base stable
+Le code a été ramené à un état antérieur stable (avant les couches d'automatisation n8n/retrain admin avancées) afin de:
+- supprimer les régressions API observées
+- réduire la complexité opérationnelle
+- revenir à un comportement prévisible côté UI et backend
 
-## 3) Historique des scans
-- Ajout d'une modal Historique avec:
-  - chargement des scans
-  - affichage date/confiance/portions
-  - action "Voir"
-  - action "Supprimer"
-- Ajout du header `Authorization` côté frontend pour les appels authentifiés.
+### 2.2 Diagnostic environnement Python
+Des erreurs d'exécution ont été identifiées côté machine locale:
+- `ModuleNotFoundError: dotenv`
+- `ModuleNotFoundError: torch`
 
-Backend:
-- `GET /api/user/history`
-- `DELETE /api/user/history/{scan_id}`
+Cause probable:
+- exécution hors environnement virtuel prévu
+- mismatch version Python système (3.9) vs dépendances ML
 
-Fichiers concernés:
-- `app/web/server.py`
-- `app/web/web_interface.html`
+Correctif recommandé:
+- recréer un venv en Python 3.10
+- réinstaller les dépendances dans ce venv
 
-## 4) Correctif RLS Supabase (cause historique vide)
-- Le backend crée maintenant un client Supabase "scopé utilisateur" avec le JWT (`postgrest.auth(token)`).
-- Les opérations profil/historique utilisent ce client utilisateur pour respecter les policies RLS.
+### 2.3 Correctif UX: portions en direct
+Problème signalé:
+- le changement de `servings` ne mettait plus la recette à jour immédiatement
 
-Fichier concerné:
-- `app/web/server.py`
+Correction appliquée:
+- conservation d'une recette de référence (base) côté frontend
+- application d'un ratio de scaling en direct
+- rafraîchissement instantané sur saisie (`oninput`) et non plus seulement sur perte de focus (`onchange`)
 
-## 5) Favoris (feature complète)
-- Backend:
-  - `GET /api/user/favorites`
-  - `POST /api/user/favorites`
-  - `DELETE /api/user/favorites/{favorite_id}`
-- Frontend:
-  - bouton "Ajouter aux favoris"
-  - modal Favoris
-  - actions "Voir" / "Supprimer"
-- Payload favori inclut `recipe_payload` pour restaurer un résultat sans rescanner.
+Impact utilisateur:
+- modification des portions visible immédiatement
+- suppression du besoin de rescanner pour voir les quantités adaptées
 
-Fichiers concernés:
-- `app/web/server.py`
-- `app/web/web_interface.html`
+---
 
-## 6) Restructuration du projet
-- Nouvelle organisation:
-  - `app/web/` pour l'application web
-  - `app/ml/` pour le predictor
-  - `app/legacy/weeks/` pour l'ancien code semaine (archivé)
-- Déplacement:
-  - `app/week6/gui.py` -> `app/web/server.py`
-  - `app/week6/web_interface.html` -> `app/web/web_interface.html`
-  - `app/week5/predictor.py` -> `app/ml/predictor.py`
-- Ajout de points d'entrée:
-  - `app/main.py`
-  - `app/__main__.py`
+## 3) Détail technique des modifications
 
-## 7) Nettoyage fichiers non essentiels
-- Suppression de documents et fichiers parasites (PDF/doc temporaires, `.DS_Store`, caches python).
-- Mise à jour du `README.md` avec la nouvelle structure et commande de lancement.
+## 3.1 Frontend (`app/web/static/js/app.js`)
+### Ajouts principaux
+- variables globales de base recette:
+  - `recipeBase`
+  - `recipeBaseServings`
 
-Commande de lancement actuelle:
-- `python -m app.main --mode web`
+### Flux prédiction
+Après réponse `/api/predict`:
+- `currentResponse` reste la réponse brute
+- `recipeBase` est clonée depuis `data.recipe`
+- `recipeBaseServings` est mémorisé
 
+### Flux favoris/historique
+- Favoris: si recette présente, elle devient nouvelle base de scaling
+- Historique sans recette: reset de la base pour éviter affichage incohérent
+
+### `refreshRecipeDisplay()`
+Nouveau comportement:
+1. lit `requestedServings`
+2. calcule `ratio = requestedServings / baseServings`
+3. rescales les `qty` ingrédients
+4. reformate les unités (`g->kg`, `ml->l`, pluralisation `piece/pieces`)
+5. reconstruit le texte recette affiché
+
+Résultat:
+- cohérence de l'affichage même quand l'utilisateur ajuste plusieurs fois les portions
+
+## 3.2 Template (`app/web/templates/index.html`)
+Changements:
+- `servings`: `onchange` -> `oninput`
+- `confidence`: `onchange` -> `oninput`
+
+Effet:
+- feedback immédiat pendant la saisie
+
+---
+
+## 4) État fonctionnel attendu après ces changements
+- login Google: OK
+- ouverture app post-login: OK
+- upload image: OK
+- prédiction + recette: OK (si classe connue)
+- changement portions: OK (mise à jour immédiate)
+- favoris: OK
+- historique: OK
+
+Précondition:
+- backend lancé dans le bon environnement Python
+
+---
+
+## 5) Procédure d'exécution validée
+Depuis `/Users/yunes/Documents/New project/AM1_projet`:
+
+```bash
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m app.main --mode web
+```
+
+URL:
+- app: [http://localhost:8000](http://localhost:8000)
+- docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## 6) Risques résiduels et points de vigilance
+1. **Dépendances lourdes ML**
+- installation lente/fragile selon version Python locale
+
+2. **Cache navigateur**
+- une ancienne version JS peut masquer le correctif portions
+
+3. **Données recettes**
+- si une classe n'existe pas dans `recipes.json`, pas de recette détaillée
+
+---
+
+## 7) Checklist QA recommandée
+1. Connexion Google
+2. Scan image d'un plat connu
+3. Modifier `servings` (2 -> 5 -> 1)
+4. Vérifier que quantités changent à chaque étape
+5. Ajouter en favori puis recharger favori
+6. Vérifier que le rescaling fonctionne aussi depuis un favori
+
+---
+
+## 8) Conclusion
+La priorité "revenir à une version qui marche" est respectée:
+- code recentré sur un socle stable
+- comportement portions restauré en dynamique
+- documentation renforcée pour installation et maintenance

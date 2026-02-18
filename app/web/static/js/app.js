@@ -9,6 +9,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       let currentHistory = [];
       let currentFavorites = [];
       let currentProfile = null;
+      let recipeBase = null;
+      let recipeBaseServings = 2;
 
       async function signInWithGoogle() {
         const { error } = await sb.auth.signInWithOAuth({
@@ -303,6 +305,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           recipe: null,
           warning: `Scan du ${new Date(item.created_at).toLocaleString("fr-FR")} • Recette detaillee indisponible sans re-scan image.`,
         };
+        recipeBase = null;
+        recipeBaseServings = parseInt(document.getElementById("servings").value, 10) || 2;
         displayResults(currentResponse);
         closeHistory();
         showStatus(
@@ -383,6 +387,12 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           ];
         }
         document.getElementById("servings").value = item.servings || 2;
+        recipeBase = currentResponse.recipe
+          ? JSON.parse(JSON.stringify(currentResponse.recipe))
+          : null;
+        recipeBaseServings =
+          (recipeBase && parseInt(recipeBase.servings, 10)) ||
+          (parseInt(item.servings, 10) || 2);
         displayResults(currentResponse);
         closeFavorites();
         showStatus(`⭐ Favori charge: ${item.predicted_dish}`, "success");
@@ -524,6 +534,9 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
           const data = await response.json();
           currentResponse = data;
+          recipeBase = data.recipe ? JSON.parse(JSON.stringify(data.recipe)) : null;
+          recipeBaseServings =
+            (recipeBase && parseInt(recipeBase.servings, 10)) || servings || 2;
 
           displayResults(data);
           showStatus("✅ Analysis complete", "success");
@@ -600,39 +613,69 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           return;
         }
 
-        const recipe = currentResponse.recipe;
         const requestedServings = Math.max(
           1,
-          parseInt(document.getElementById("servings").value) || recipe.servings || 1,
+          parseInt(document.getElementById("servings").value, 10) || 2,
         );
-        const baseServings = Number(recipe.servings) > 0 ? Number(recipe.servings) : 1;
-        const scaleFactor = requestedServings / baseServings;
+        const sourceRecipe = recipeBase || currentResponse.recipe;
+        const baseServings = Math.max(
+          1,
+          parseInt(recipeBaseServings || sourceRecipe.servings, 10) || 2,
+        );
+        const ratio = requestedServings / baseServings;
 
-        function formatScaledQuantity(value, unit) {
-          const numericValue = Number(value);
-          if (!Number.isFinite(numericValue)) return "";
-          const scaled = numericValue * scaleFactor;
+        const formatQuantity = (qty, unit) => {
+          if (qty === null || Number.isNaN(qty)) return "";
+          let value = qty;
+          let u = (unit || "").toLowerCase();
+          if (u === "g" && value >= 1000) {
+            value /= 1000;
+            u = "kg";
+          } else if (u === "ml" && value >= 1000) {
+            value /= 1000;
+            u = "l";
+          }
           const rounded =
-            scaled >= 10
-              ? scaled.toFixed(1)
-              : scaled >= 1
-                ? scaled.toFixed(2)
-                : scaled.toFixed(3);
-          const clean = Number(rounded).toString();
-          return unit ? `${clean} ${unit}` : clean;
-        }
+            Math.abs(value - Math.round(value)) < 1e-9
+              ? `${Math.round(value)}`
+              : `${value.toFixed(2).replace(/\.?0+$/, "")}`;
+          const unitMap = {
+            g: "g",
+            kg: "kg",
+            ml: "ml",
+            l: "l",
+            piece: rounded === "1" ? "piece" : "pieces",
+            tbsp: "tbsp",
+            tsp: "tsp",
+          };
+          const unitLabel = unitMap[u] || u;
+          return unitLabel ? `${rounded} ${unitLabel}` : rounded;
+        };
 
+        const recipe = {
+          ...sourceRecipe,
+          servings: requestedServings,
+          ingredients: (sourceRecipe.ingredients || []).map((ing) => {
+            const hasQty = typeof ing.qty === "number";
+            const scaledQty = hasQty ? ing.qty * ratio : null;
+            return {
+              ...ing,
+              qty: scaledQty,
+              formatted: hasQty
+                ? formatQuantity(scaledQty, ing.unit)
+                : ing.formatted || "",
+            };
+          }),
+        };
         let recipeText = `╔════════════════════════════════════════╗\n`;
         recipeText += `║  ${recipe.name.toUpperCase()}\n`;
-        recipeText += `║  Servings: ${requestedServings}\n`;
+        recipeText += `║  Servings: ${recipe.servings}\n`;
         recipeText += `╚════════════════════════════════════════╝\n\n`;
 
         recipeText += "📦 INGREDIENTS:\n";
         recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
         recipe.ingredients.forEach((ing) => {
-          const formattedQty = formatScaledQuantity(ing.qty, ing.unit);
-          const qtyText = formattedQty || ing.formatted || "";
-          recipeText += `  • ${qtyText} ${ing.display}\n`;
+          recipeText += `  • ${ing.formatted} ${ing.display}\n`;
         });
 
         recipeText += "\n🔬 PROCEDURE:\n";

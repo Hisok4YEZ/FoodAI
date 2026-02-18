@@ -1,24 +1,35 @@
 # FoodAI
 
-Application de reconnaissance de plats avec interface web (auth Google + Supabase), historique et favoris.
+Application web de reconnaissance de plats avec:
+- authentification Google (Supabase Auth)
+- profil utilisateur (préférences + consentement image)
+- historique des scans
+- favoris
+- interface admin (candidats n8n)
+- scripts de retrain du modèle
 
 ## Structure
-- `app/web/`: serveur FastAPI + interface web
-- `app/ml/`: modèle de prédiction
-- `app/core/`: recettes, unités, scaling
-- `app/cli/`: commandes utilitaires
-- `app/legacy/weeks/`: ancien code des semaines (archivé)
+- `/Users/yunes/Documents/New project/AM1_projet/app/web/` : serveur FastAPI + frontend
+- `/Users/yunes/Documents/New project/AM1_projet/app/ml/` : prédiction + retrain
+- `/Users/yunes/Documents/New project/AM1_projet/app/core/` : recettes, unités, scaling
+- `/Users/yunes/Documents/New project/AM1_projet/app/data/recipes.json` : base recettes
+- `/Users/yunes/Documents/New project/AM1_projet/data/food/` : dataset d'entraînement
+- `/Users/yunes/Documents/New project/AM1_projet/docs/n8n/` : workflows n8n
 
-## Lancer l'application
+## Installation (recommandée)
+Utilise Python 3.10 pour éviter les conflits de dépendances ML.
+
 ```bash
-pip install -r requirements.txt
-python -m app.main --mode web
+cd "/Users/yunes/Documents/New project/AM1_projet"
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-Interface: `http://localhost:8000`
-
 ## Variables d'environnement
-Créer `.env` à la racine:
+Créer `/Users/yunes/Documents/New project/AM1_projet/.env`:
+
 ```env
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
@@ -28,23 +39,35 @@ ADMIN_TOKEN=...
 SUPABASE_IMAGE_BUCKET=scan-images
 ```
 
-## Tests
+## Lancer l'application
 ```bash
-pytest -q
+source .venv/bin/activate
+python -m app.main --mode web
 ```
 
-## Retrain manuel du modele (complet)
+- Interface: [http://localhost:8000](http://localhost:8000)
+- Docs API: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Admin: [http://localhost:8000/admin](http://localhost:8000/admin)
+
+## Fonctionnalités validées
+- Login Google + persistance session
+- Préférences utilisateur (profil, restrictions, consentement image)
+- Historique (lecture/suppression/voir)
+- Favoris (ajout/lecture/suppression/voir)
+- Scan image -> top-k -> recette
+- Ajustement dynamique des portions côté frontend (mise à jour en direct)
+
+## Retrain manuel du modèle (complet)
 ```bash
+source .venv/bin/activate
 python -m app.ml.retrain --data data/food --epochs 5 --batch-size 16
 ```
 
-Le modele est ecrit dans `models/model_food.pth`.
+Le modèle est écrit dans `/Users/yunes/Documents/New project/AM1_projet/models/model_food.pth`.
 
-## Retrain incremental (batch + replay)
-Le retrain rapide utilise seulement les nouveaux candidats approuves + un echantillon des anciennes classes (replay) pour limiter l'oubli catastrophique.
-
-Script:
+## Retrain incrémental (batch + replay)
 ```bash
+source .venv/bin/activate
 python -m app.ml.retrain_incremental \
   --batch-dir data/auto_batches/<batch_id> \
   --base-model models/model_food.pth \
@@ -55,23 +78,42 @@ python -m app.ml.retrain_incremental \
 ```
 
 ## Automatisation n8n + Admin
-1. Exécuter le SQL:
-- `docs/n8n/dish_candidates_schema.sql`
+Workflows disponibles:
+- `/Users/yunes/Documents/New project/AM1_projet/docs/n8n/foodai_n8n_cloud_free_v3_single_agent.json`
+- `/Users/yunes/Documents/New project/AM1_projet/docs/n8n/foodai_n8n_cloud_free_v4_batch_two_agents.json`
 
-2. Ouvrir l'interface admin:
-- `http://localhost:8000/admin`
-
-3. Importer le workflow n8n:
-- complet (2 agents + Openverse + batch): `docs/n8n/foodai_n8n_cloud_free_v4_batch_two_agents.json`
-- `docs/n8n/foodai_n8n_cloud_free_v3_single_agent.json`
-
-4. Endpoints admin utilises:
-- `POST /api/admin/candidates/n8n` (ingestion candidats, `auto_approve` possible)
-- `POST /api/admin/candidates/n8n/batch` (ingestion batch)
+Endpoints admin utilisés:
+- `POST /api/admin/candidates/n8n`
+- `POST /api/admin/candidates/n8n/batch`
 - `GET /api/admin/candidates`
 - `PATCH /api/admin/candidates/{candidate_id}`
 - `POST /api/admin/retrain/incremental`
 - `GET /api/admin/retrain/status`
 
-Si tu veux un retrain ultra rapide uniquement sur le batch, mets `replay_per_class=0`.
-Attention: ce mode oublie plus facilement les anciennes classes.
+## Troubleshooting
+### `ModuleNotFoundError: dotenv`
+```bash
+source .venv/bin/activate
+python -m pip install python-dotenv
+```
+
+### `ModuleNotFoundError: torch`
+Tu n'es pas dans le bon venv ou torch n'est pas installé.
+
+```bash
+source .venv/bin/activate
+python -c "import torch; print(torch.__version__)"
+```
+
+Si erreur:
+```bash
+python -m pip install torch torchvision
+```
+
+### Le frontend ne prend pas les changements JS
+- redémarrer le backend
+- hard refresh navigateur (`Cmd + Shift + R`)
+
+## Rapport détaillé
+- Markdown: `/Users/yunes/Documents/New project/AM1_projet/RAPPORT_MODIFICATIONS.md`
+- PDF: `/Users/yunes/Documents/New project/AM1_projet/RAPPORT_MODIFICATIONS.pdf`
