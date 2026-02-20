@@ -54,7 +54,6 @@ def run_pyqt():
     from app.core.recipes import RecipeDB
     from app.core.scaling import scale_dish
     from app.core.units import format_quantity
-    from app.ml.predictor import FoodPredictor
 
     def pretty_recipe(dish, servings: int) -> str:
         scaled = scale_dish(dish, servings)
@@ -268,16 +267,38 @@ def run_web():
         allow_headers=["*"],
     )
 
-    # Chargement des modèles au démarrage
-    print("🔄 Chargement du modèle et de la base de recettes...")
+    # Démarrage rapide: on charge la base recettes au boot, le modèle IA à la 1ère prédiction.
+    print("🔄 Chargement de la base de recettes...")
     try:
-        predictor = FoodPredictor(model_path="models/model_food.pth")
         db = RecipeDB.load()
-        print("✅ Modèle et base de données chargés avec succès !")
+        print("✅ Base recettes chargée")
     except Exception as e:
-        print(f"❌ Erreur lors du chargement : {e}")
-        predictor = None
+        print(f"❌ Erreur chargement recettes: {e}")
         db = None
+
+    predictor = None
+    predictor_error: Optional[str] = None
+    predictor_lock = threading.Lock()
+
+    def ensure_predictor_loaded():
+        nonlocal predictor, predictor_error
+        if predictor is not None:
+            return predictor
+        with predictor_lock:
+            if predictor is not None:
+                return predictor
+            if predictor_error:
+                raise RuntimeError(predictor_error)
+            try:
+                print("🔄 Chargement du modèle IA (lazy load)...")
+                from app.ml.predictor import FoodPredictor
+                predictor = FoodPredictor(model_path="models/model_food.pth")
+                print("✅ Modèle IA chargé")
+                return predictor
+            except Exception as e:
+                predictor_error = f"Chargement modèle impossible: {e}"
+                print(f"❌ {predictor_error}")
+                raise RuntimeError(predictor_error)
 
     retrain_state: Dict[str, Any] = {
         "status": "idle",
@@ -659,6 +680,7 @@ def run_web():
         return {
             "status": "healthy",
             "predictor_loaded": predictor is not None,
+            "predictor_error": predictor_error,
             "db_loaded": db is not None,
             "num_dishes": len(db.dishes) if db else 0,
             "auth_enabled": supabase is not None
@@ -674,10 +696,18 @@ def run_web():
         """Prédire le plat à partir d'une image et retourner la recette"""
         print(f"📸 Nouvelle prédiction - Fichier: {file.filename}, Portions: {servings}, Seuil: {min_confidence}")
         
-        if not predictor or not db:
+        if not db:
             raise HTTPException(
                 status_code=503,
-                detail="Le modèle n'est pas chargé. Vérifiez que le fichier model_food.pth existe."
+                detail="Base de recettes non chargée."
+            )
+
+        try:
+            active_predictor = ensure_predictor_loaded()
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=str(e)
             )
         
         if not file.content_type.startswith('image/'):
@@ -696,7 +726,7 @@ def run_web():
             print(f"🔍 Analyse de l'image: {tmp_path}")
             
             # Prédiction
-            predictions = predictor.predict_topk(tmp_path, k=3)
+            predictions = active_predictor.predict_topk(tmp_path, k=3)
             print(f"✅ Top-3: {[(p.label, f'{p.confidence:.3f}') for p in predictions]}")
             
             predictions_data = [
@@ -1029,15 +1059,15 @@ def run_web():
         }
 
     # ============================================
-    # ENDPOINTS ADMIN / N8N
+    # ENDPOINTS ADMIN
     # ============================================
 
-    @app.post("/api/admin/candidates/n8n")
-    async def ingest_candidate_from_n8n(
+    @app.post("/api/admin/candidates/ingest")
+    async def ingest_candidate(
         payload: CandidateIngest,
         _admin_ok = Depends(require_admin)
     ):
-        """Ingestion candidate dish depuis n8n (image + recette proposée)."""
+        """Ingestion d'un candidat plat (image + recette proposée)."""
         admin_client = get_admin_client()
         if not admin_client:
             raise HTTPException(status_code=503, detail="Supabase non configuré")
@@ -1073,12 +1103,12 @@ def run_web():
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post("/api/admin/candidates/n8n/batch")
-    async def ingest_candidates_batch_from_n8n(
+    @app.post("/api/admin/candidates/ingest/batch")
+    async def ingest_candidates_batch(
         payload: CandidateBatchIngest,
         _admin_ok = Depends(require_admin)
     ):
-        """Ingestion batch depuis n8n pour plusieurs candidats d'un coup."""
+        """Ingestion batch pour plusieurs candidats d'un coup."""
         admin_client = get_admin_client()
         if not admin_client:
             raise HTTPException(status_code=503, detail="Supabase non configuré")
