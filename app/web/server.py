@@ -4,13 +4,9 @@ import sys
 from pathlib import Path
 import argparse
 import os
-import re
-import subprocess
 import threading
 from datetime import datetime, timezone
 from uuid import uuid4
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 from dotenv import load_dotenv
 
 # Charge toujours le .env à la racine du projet, peu importe le dossier courant.
@@ -221,29 +217,19 @@ def run_web():
     
     SUPABASE_URL = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-    ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
     if not SUPABASE_AVAILABLE:
         print("⚠️ Supabase n'est pas installé. Les fonctionnalités d'authentification seront désactivées.")
         print("   Pour activer : pip install supabase")
         supabase: Optional[Client] = None
-        supabase_admin: Optional[Client] = None
     else:
         if SUPABASE_URL and SUPABASE_KEY:
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
             print("✅ Supabase connecté")
-            if SUPABASE_SERVICE_KEY:
-                supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-                print("✅ Supabase service role activé pour endpoints admin")
-            else:
-                supabase_admin = supabase
-                print("⚠️ SUPABASE_SERVICE_ROLE_KEY absent: endpoints admin en mode limité")
         else:
             print("⚠️ Variables SUPABASE_URL et SUPABASE_ANON_KEY non définies")
             print("   Les fonctionnalités d'authentification seront désactivées")
             supabase = None
-            supabase_admin = None
     
     from app.core.recipes import RecipeDB
     from app.core.scaling import scale_dish
@@ -299,20 +285,6 @@ def run_web():
                 predictor_error = f"Chargement modèle impossible: {e}"
                 print(f"❌ {predictor_error}")
                 raise RuntimeError(predictor_error)
-
-    retrain_state: Dict[str, Any] = {
-        "status": "idle",
-        "job_id": None,
-        "started_at": None,
-        "finished_at": None,
-        "message": None,
-        "downloaded_images": 0,
-        "candidates_count": 0,
-        "batch_dir": None,
-        "last_stdout_tail": None,
-        "last_stderr_tail": None,
-    }
-    retrain_lock = threading.Lock()
 
     # ============================================
     # MODÈLES PYDANTIC
@@ -383,35 +355,6 @@ def run_web():
         recipe_payload: Optional[RecipeResponse]
         created_at: str
 
-    class CandidateRecipe(BaseModel):
-        name: str
-        servings: int
-        ingredients: List[str]
-        steps: List[str]
-
-    class CandidateIngest(BaseModel):
-        source_keyword: Optional[str] = None
-        dish_name: str
-        servings: int = 2
-        image_url: Optional[str] = None
-        notes: Optional[str] = None
-        recipe: Optional[CandidateRecipe] = None
-        insert_known: bool = False
-        auto_approve: bool = False
-
-    class CandidateBatchIngest(BaseModel):
-        candidates: List[CandidateIngest]
-
-    class CandidateUpdate(BaseModel):
-        status: Optional[str] = None
-        added_to_training: Optional[bool] = None
-        admin_note: Optional[str] = None
-
-    class IncrementalRetrainRequest(BaseModel):
-        limit_candidates: int = 50
-        epochs: int = 2
-        replay_per_class: int = 20
-
     # ============================================
     # HELPERS
     # ============================================
@@ -429,184 +372,6 @@ def run_web():
         if not result.data:
             return None
         return result.data[0]
-
-    def get_admin_client():
-        return supabase_admin if supabase_admin else supabase
-
-    def dish_exists_in_catalog(dish_name: str) -> bool:
-        if not db:
-            return False
-        dish_name_norm = dish_name.strip().lower()
-        if not dish_name_norm:
-            return False
-        for dish in db.dishes:
-            if dish.name.strip().lower() == dish_name_norm or dish.id.strip().lower() == dish_name_norm:
-                return True
-        return False
-
-    def normalize_label_name(name: str) -> str:
-        label = name.strip().lower()
-        label = re.sub(r"[^a-z0-9]+", "_", label)
-        label = label.strip("_")
-        return label or "unknown_dish"
-
-    def safe_image_extension(image_url: str) -> str:
-        ext = Path(urlparse(image_url).path).suffix.lower()
-        return ext if ext in {".jpg", ".jpeg", ".png", ".webp", ".bmp"} else ".jpg"
-
-    def download_image_to_path(image_url: str, dest_path: Path) -> bool:
-        try:
-            req = Request(
-                image_url,
-                headers={"User-Agent": "Mozilla/5.0 (FoodAI retrain bot)"},
-            )
-            with urlopen(req, timeout=20) as response:
-                content_type = (response.headers.get("Content-Type") or "").lower()
-                if "image" not in content_type:
-                    return False
-                data = response.read()
-            if not data or len(data) < 1024:
-                return False
-            dest_path.write_bytes(data)
-            return True
-        except Exception:
-            return False
-
-    def update_retrain_state(**kwargs):
-        with retrain_lock:
-            retrain_state.update(kwargs)
-
-    def list_approved_candidates_for_retrain(limit_candidates: int):
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-        query = (
-            admin_client.table("dish_candidates")
-            .select("*")
-            .eq("status", "approved")
-            .eq("added_to_training", False)
-            .order("created_at", desc=False)
-            .limit(limit_candidates)
-        )
-        result = query.execute()
-        return result.data or []
-
-    def build_incremental_batch(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
-        batch_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        batch_dir = PROJECT_ROOT / "data" / "auto_batches" / batch_id
-        batch_dir.mkdir(parents=True, exist_ok=True)
-
-        accepted_candidate_ids: List[str] = []
-        downloaded_count = 0
-        class_counts: Dict[str, int] = {}
-
-        for candidate in candidates:
-            dish_name = (candidate.get("dish_name") or "").strip()
-            image_url = (candidate.get("image_url") or "").strip()
-            candidate_id = candidate.get("id")
-            if not dish_name or not image_url or not candidate_id:
-                continue
-
-            class_name = normalize_label_name(dish_name)
-            class_dir = batch_dir / class_name
-            class_dir.mkdir(parents=True, exist_ok=True)
-
-            ext = safe_image_extension(image_url)
-            image_path = class_dir / f"{candidate_id}{ext}"
-
-            if download_image_to_path(image_url, image_path):
-                downloaded_count += 1
-                class_counts[class_name] = class_counts.get(class_name, 0) + 1
-                accepted_candidate_ids.append(candidate_id)
-
-        return {
-            "batch_dir": str(batch_dir),
-            "batch_id": batch_id,
-            "downloaded_count": downloaded_count,
-            "candidate_ids": accepted_candidate_ids,
-            "class_counts": class_counts,
-        }
-
-    def mark_candidates_as_trained(candidate_ids: List[str], success: bool, note: Optional[str] = None):
-        admin_client = get_admin_client()
-        if not admin_client:
-            return
-        for candidate_id in candidate_ids:
-            payload: Dict[str, Any] = {}
-            if success:
-                payload.update({"added_to_training": True, "status": "trained"})
-            if note:
-                payload["admin_note"] = note
-            if payload:
-                try:
-                    admin_client.table("dish_candidates").update(payload).eq("id", candidate_id).execute()
-                except Exception:
-                    pass
-
-    def run_incremental_retrain_worker(job_id: str, batch_dir: str, candidate_ids: List[str], epochs: int, replay_per_class: int):
-        update_retrain_state(
-            status="running",
-            job_id=job_id,
-            started_at=datetime.now(timezone.utc).isoformat(),
-            finished_at=None,
-            message="Retrain incrémental en cours",
-            last_stdout_tail=None,
-            last_stderr_tail=None,
-        )
-
-        cmd = [
-            sys.executable,
-            "-m",
-            "app.ml.retrain_incremental",
-            "--batch-dir",
-            batch_dir,
-            "--base-model",
-            "models/model_food.pth",
-            "--out",
-            "models/model_food.pth",
-            "--data",
-            "data/food",
-            "--epochs",
-            str(epochs),
-            "--replay-per-class",
-            str(replay_per_class),
-        ]
-
-        try:
-            proc = subprocess.run(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            stdout_tail = (proc.stdout or "")[-2000:]
-            stderr_tail = (proc.stderr or "")[-2000:]
-            if proc.returncode == 0:
-                mark_candidates_as_trained(candidate_ids, success=True, note="Auto trained")
-                update_retrain_state(
-                    status="completed",
-                    finished_at=datetime.now(timezone.utc).isoformat(),
-                    message="Retrain terminé avec succès",
-                    last_stdout_tail=stdout_tail,
-                    last_stderr_tail=stderr_tail,
-                )
-            else:
-                update_retrain_state(
-                    status="failed",
-                    finished_at=datetime.now(timezone.utc).isoformat(),
-                    message=f"Retrain échoué (code {proc.returncode})",
-                    last_stdout_tail=stdout_tail,
-                    last_stderr_tail=stderr_tail,
-                )
-        except Exception as e:
-            update_retrain_state(
-                status="failed",
-                finished_at=datetime.now(timezone.utc).isoformat(),
-                message=f"Erreur retrain: {e}",
-                last_stdout_tail=None,
-                last_stderr_tail=None,
-            )
 
     ASSET_VERSION = str(int(datetime.now(timezone.utc).timestamp()))
 
@@ -647,13 +412,6 @@ def run_web():
             print(f"Erreur auth: {e}")
             return None
 
-    async def require_admin(x_admin_token: str = Header(None, alias="X-Admin-Token")):
-        if not ADMIN_TOKEN:
-            raise HTTPException(status_code=503, detail="ADMIN_TOKEN non configuré")
-        if not x_admin_token or x_admin_token != ADMIN_TOKEN:
-            raise HTTPException(status_code=401, detail="Non autorisé (admin token)")
-        return True
-
     # ============================================
     # ENDPOINTS
     # ============================================
@@ -669,10 +427,6 @@ def run_web():
                 "status": "ok" if predictor and db else "error",
                 "auth_enabled": supabase is not None
             }
-
-    @app.get("/admin")
-    async def admin_page():
-        return HTMLResponse(content=render_html_template("admin.html"))
 
     @app.get("/health")
     async def health_check():
@@ -1057,211 +811,6 @@ def run_web():
                 for d in db.dishes
             ]
         }
-
-    # ============================================
-    # ENDPOINTS ADMIN
-    # ============================================
-
-    @app.post("/api/admin/candidates/ingest")
-    async def ingest_candidate(
-        payload: CandidateIngest,
-        _admin_ok = Depends(require_admin)
-    ):
-        """Ingestion d'un candidat plat (image + recette proposée)."""
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        dish_name = payload.dish_name.strip()
-        if not dish_name:
-            raise HTTPException(status_code=400, detail="dish_name requis")
-
-        is_new = not dish_exists_in_catalog(dish_name)
-        if not is_new and not payload.insert_known:
-            return {
-                "message": "Plat déjà connu: candidat ignoré",
-                "is_new_dish": False,
-                "candidate": None,
-            }
-
-        data = {
-            "dish_name": dish_name,
-            "source_keyword": payload.source_keyword,
-            "servings": payload.servings,
-            "image_url": payload.image_url,
-            "notes": payload.notes,
-            "recipe_payload": payload.recipe.model_dump() if payload.recipe else None,
-            "is_new_dish": is_new,
-            "status": "approved" if payload.auto_approve else "pending",
-            "added_to_training": False,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        try:
-            result = admin_client.table("dish_candidates").insert(data).execute()
-            return {"message": "Candidate ajouté", "is_new_dish": is_new, "candidate": (result.data or [None])[0]}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.post("/api/admin/candidates/ingest/batch")
-    async def ingest_candidates_batch(
-        payload: CandidateBatchIngest,
-        _admin_ok = Depends(require_admin)
-    ):
-        """Ingestion batch pour plusieurs candidats d'un coup."""
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        rows: List[Dict[str, Any]] = []
-        skipped_invalid = 0
-        skipped_known = 0
-
-        for candidate in payload.candidates:
-            dish_name = candidate.dish_name.strip()
-            if not dish_name:
-                skipped_invalid += 1
-                continue
-
-            is_new = not dish_exists_in_catalog(dish_name)
-            if not is_new and not candidate.insert_known:
-                skipped_known += 1
-                continue
-
-            rows.append({
-                "dish_name": dish_name,
-                "source_keyword": candidate.source_keyword,
-                "servings": candidate.servings,
-                "image_url": candidate.image_url,
-                "notes": candidate.notes,
-                "recipe_payload": candidate.recipe.model_dump() if candidate.recipe else None,
-                "is_new_dish": is_new,
-                "status": "approved" if candidate.auto_approve else "pending",
-                "added_to_training": False,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-
-        if not rows:
-            return {
-                "message": "Aucun candidat inséré",
-                "inserted_count": 0,
-                "skipped_invalid": skipped_invalid,
-                "skipped_known": skipped_known,
-            }
-
-        try:
-            result = admin_client.table("dish_candidates").insert(rows).execute()
-            inserted = result.data or []
-            return {
-                "message": "Batch candidats inséré",
-                "inserted_count": len(inserted),
-                "skipped_invalid": skipped_invalid,
-                "skipped_known": skipped_known,
-                "candidates": inserted,
-            }
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.get("/api/admin/candidates")
-    async def list_admin_candidates(
-        status: Optional[str] = None,
-        limit: int = 200,
-        _admin_ok = Depends(require_admin)
-    ):
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        try:
-            query = admin_client.table("dish_candidates").select("*").order("created_at", desc=True).limit(limit)
-            if status:
-                query = query.eq("status", status)
-            result = query.execute()
-            return result.data or []
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.patch("/api/admin/candidates/{candidate_id}")
-    async def update_admin_candidate(
-        candidate_id: str,
-        updates: CandidateUpdate = Body(...),
-        _admin_ok = Depends(require_admin)
-    ):
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        update_data = updates.model_dump(exclude_unset=True)
-        if not update_data:
-            raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
-
-        try:
-            result = admin_client.table("dish_candidates").update(update_data).eq("id", candidate_id).execute()
-            return {"message": "Candidate mis à jour", "candidate": (result.data or [None])[0]}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.post("/api/admin/retrain/incremental")
-    async def trigger_incremental_retrain(
-        payload: IncrementalRetrainRequest = Body(...),
-        _admin_ok = Depends(require_admin),
-    ):
-        with retrain_lock:
-            if retrain_state.get("status") == "running":
-                raise HTTPException(status_code=409, detail="Un retrain est déjà en cours")
-
-        limit_candidates = max(1, min(payload.limit_candidates, 500))
-        epochs = max(1, min(payload.epochs, 20))
-        replay_per_class = max(0, min(payload.replay_per_class, 200))
-
-        candidates = list_approved_candidates_for_retrain(limit_candidates)
-        if not candidates:
-            raise HTTPException(status_code=400, detail="Aucun candidat approuvé disponible")
-
-        batch_info = build_incremental_batch(candidates)
-        if batch_info["downloaded_count"] <= 0:
-            raise HTTPException(status_code=400, detail="Aucune image exploitable téléchargée depuis les candidats")
-
-        job_id = datetime.now(timezone.utc).strftime("job_%Y%m%d_%H%M%S")
-        update_retrain_state(
-            status="queued",
-            job_id=job_id,
-            started_at=None,
-            finished_at=None,
-            message="Retrain en file d'attente",
-            downloaded_images=batch_info["downloaded_count"],
-            candidates_count=len(batch_info["candidate_ids"]),
-            batch_dir=batch_info["batch_dir"],
-            last_stdout_tail=None,
-            last_stderr_tail=None,
-        )
-
-        worker = threading.Thread(
-            target=run_incremental_retrain_worker,
-            args=(
-                job_id,
-                batch_info["batch_dir"],
-                batch_info["candidate_ids"],
-                epochs,
-                replay_per_class,
-            ),
-            daemon=True,
-        )
-        worker.start()
-
-        return {
-            "message": "Retrain incrémental lancé",
-            "job_id": job_id,
-            "downloaded_images": batch_info["downloaded_count"],
-            "candidates_count": len(batch_info["candidate_ids"]),
-            "batch_dir": batch_info["batch_dir"],
-            "class_counts": batch_info["class_counts"],
-        }
-
-    @app.get("/api/admin/retrain/status")
-    async def get_incremental_retrain_status(_admin_ok = Depends(require_admin)):
-        with retrain_lock:
-            return dict(retrain_state)
 
     print("🚀 Démarrage du serveur FastAPI...")
     print("📍 L'API sera accessible sur : http://localhost:8000")
