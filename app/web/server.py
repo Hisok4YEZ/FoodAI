@@ -211,24 +211,23 @@ def run_pyqt():
 def run_web():
     """Lance le backend web FastAPI avec Supabase"""
     if not FASTAPI_AVAILABLE:
-        print("❌ FastAPI n'est pas installé. Installez-le avec:")
-        print("   pip install fastapi uvicorn python-multipart pydantic")
+        print("Oups, FastAPI n'est pas installe sur cette machine.")
+        print("Installe-le avec: pip install fastapi uvicorn python-multipart pydantic")
         sys.exit(1)
     
     SUPABASE_URL = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
     if not SUPABASE_AVAILABLE:
-        print("⚠️ Supabase n'est pas installé. Les fonctionnalités d'authentification seront désactivées.")
-        print("   Pour activer : pip install supabase")
+        print("Supabase n'est pas installe, donc je lance l'app sans authentification.")
+        print("Pour l'activer: pip install supabase")
         supabase: Optional[Client] = None
     else:
         if SUPABASE_URL and SUPABASE_KEY:
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-            print("✅ Supabase connecté")
+            print("Connexion Supabase OK.")
         else:
-            print("⚠️ Variables SUPABASE_URL et SUPABASE_ANON_KEY non définies")
-            print("   Les fonctionnalités d'authentification seront désactivées")
+            print("Variables SUPABASE_URL/SUPABASE_ANON_KEY manquantes, auth desactivee.")
             supabase = None
     
     from app.core.recipes import RecipeDB
@@ -254,12 +253,12 @@ def run_web():
     )
 
     # Démarrage rapide: on charge la base recettes au boot, le modèle IA à la 1ère prédiction.
-    print("🔄 Chargement de la base de recettes...")
+    print("Je charge la base de recettes...")
     try:
         db = RecipeDB.load()
-        print("✅ Base recettes chargée")
+        print("Base de recettes prete.")
     except Exception as e:
-        print(f"❌ Erreur chargement recettes: {e}")
+        print(f"Je n'ai pas pu charger les recettes: {e}")
         db = None
 
     predictor = None
@@ -276,14 +275,14 @@ def run_web():
             if predictor_error:
                 raise RuntimeError(predictor_error)
             try:
-                print("🔄 Chargement du modèle IA (lazy load)...")
+                print("Je charge le modele IA a la demande...")
                 from app.ml.predictor import FoodPredictor
                 predictor = FoodPredictor(model_path="models/model_food.pth")
-                print("✅ Modèle IA chargé")
+                print("Modele IA charge.")
                 return predictor
             except Exception as e:
                 predictor_error = f"Chargement modèle impossible: {e}"
-                print(f"❌ {predictor_error}")
+                print(f"Impossible de charger le modele: {predictor_error}")
                 raise RuntimeError(predictor_error)
 
     # ============================================
@@ -373,6 +372,14 @@ def run_web():
             return None
         return result.data[0]
 
+    def require_user_client(current_user: Optional[Dict[str, Any]]) -> Client:
+        if not current_user or not supabase:
+            raise HTTPException(status_code=401, detail="Non authentifié")
+        user_supabase = get_user_scoped_client(current_user["token"])
+        if not user_supabase:
+            raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+        return user_supabase
+
     ASSET_VERSION = str(int(datetime.now(timezone.utc).timestamp()))
 
     def render_html_template(template_name: str, extra_replacements: Optional[Dict[str, Any]] = None) -> str:
@@ -409,7 +416,7 @@ def run_web():
                 "token": token
             }
         except Exception as e:
-            print(f"Erreur auth: {e}")
+            print(f"Je n'ai pas pu verifier le token utilisateur: {e}")
             return None
 
     # ============================================
@@ -448,7 +455,7 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Prédire le plat à partir d'une image et retourner la recette"""
-        print(f"📸 Nouvelle prédiction - Fichier: {file.filename}, Portions: {servings}, Seuil: {min_confidence}")
+        print(f"Nouvelle analyse: {file.filename} (portions={servings}, seuil={min_confidence})")
         
         if not db:
             raise HTTPException(
@@ -477,11 +484,11 @@ def run_web():
                 shutil.copyfileobj(file.file, tmp_file)
                 tmp_path = tmp_file.name
             
-            print(f"🔍 Analyse de l'image: {tmp_path}")
+            print("Image recue, je lance l'analyse.")
             
             # Prédiction
             predictions = active_predictor.predict_topk(tmp_path, k=3)
-            print(f"✅ Top-3: {[(p.label, f'{p.confidence:.3f}') for p in predictions]}")
+            print(f"Predictions top-3: {[(p.label, f'{p.confidence:.3f}') for p in predictions]}")
             
             predictions_data = [
                 PredictionResponse(label=p.label, confidence=p.confidence)
@@ -494,15 +501,15 @@ def run_web():
             
             if best.confidence < min_confidence:
                 warning = f"Prédiction incertaine (confiance={best.confidence:.3f} < seuil={min_confidence:.2f})"
-                print(f"⚠️ {warning}")
+                print(f"Confiance trop basse: {warning}")
             else:
                 dish = db.find_dish(best.label)
                 
                 if dish is None:
                     warning = f"Plat prédit '{best.label}' introuvable dans la base de recettes"
-                    print(f"⚠️ {warning}")
+                    print(f"Plat introuvable dans recipes: {warning}")
                 else:
-                    print(f"📖 Recette trouvée: {dish.name}")
+                    print(f"Recette trouvee: {dish.name}")
                     scaled = scale_dish(dish, servings)
                     
                     ingredients_data = [
@@ -546,7 +553,7 @@ def run_web():
                                     )
                                 image_url = key
                             except Exception as upload_error:
-                                print(f"⚠️ Erreur upload image (consentement actif): {upload_error}")
+                                print(f"Upload image ignore (consentement actif): {upload_error}")
 
                         user_supabase.table('scan_history').insert({
                             'user_id': current_user["id"],
@@ -556,9 +563,9 @@ def run_web():
                             'top_predictions': [{'label': p.label, 'confidence': p.confidence} for p in predictions_data],
                             'servings': servings
                         }).execute()
-                        print(f"💾 Scan sauvegardé pour l'utilisateur {current_user['email']}")
+                        print(f"Scan sauvegarde pour {current_user['email']}.")
                 except Exception as e:
-                    print(f"⚠️ Erreur sauvegarde historique: {e}")
+                    print(f"Je n'ai pas pu enregistrer l'historique: {e}")
             
             return FullPredictionResponse(
                 predictions=predictions_data,
@@ -569,7 +576,7 @@ def run_web():
         except HTTPException:
             raise
         except Exception as e:
-            print(f"❌ Erreur lors de la prédiction: {e}")
+            print(f"L'analyse a echoue: {e}")
             import traceback
             traceback.print_exc()
             raise HTTPException(
@@ -583,7 +590,7 @@ def run_web():
                 try:
                     Path(tmp_path).unlink()
                 except Exception as e:
-                    print(f"⚠️ Erreur lors de la suppression du fichier temporaire: {e}")
+                    print(f"Je n'ai pas pu supprimer le fichier temporaire: {e}")
 
     # ============================================
     # ENDPOINTS UTILISATEURS
@@ -592,13 +599,8 @@ def run_web():
     @app.get("/api/user/profile", response_model=UserProfile)
     async def get_user_profile(current_user = Depends(get_current_user)):
         """Obtenir le profil de l'utilisateur connecté"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-        
         try:
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
             result = user_supabase.table('users').select('*').eq('id', current_user["id"]).execute()
             if not result.data:
                 raise HTTPException(status_code=404, detail="Profil non trouvé")
@@ -628,9 +630,6 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Mettre à jour le profil utilisateur"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-        
         try:
             updates = UserUpdate(**payload)
         except ValidationError as e:
@@ -641,9 +640,7 @@ def run_web():
             if not update_data:
                 raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
             
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
             user_supabase.table('users').update(update_data).eq('id', current_user["id"]).execute()
             return {"message": "Profil mis à jour avec succès"}
         except HTTPException:
@@ -657,13 +654,8 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Obtenir l'historique des scans de l'utilisateur"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-        
         try:
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
             result = user_supabase.table('scan_history')\
                 .select('*')\
                 .eq('user_id', current_user["id"])\
@@ -692,13 +684,8 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Supprimer un scan de l'historique"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-        
         try:
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
             user_supabase.table('scan_history')\
                 .delete()\
                 .eq('id', scan_id)\
@@ -714,13 +701,8 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Obtenir les favoris de l'utilisateur"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-
         try:
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
 
             result = user_supabase.table('favorites')\
                 .select('*')\
@@ -753,14 +735,9 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Ajouter un favori"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-
         try:
             favorite = FavoriteCreate(**payload)
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
 
             payload = {
                 'user_id': current_user["id"],
@@ -781,13 +758,8 @@ def run_web():
         current_user = Depends(get_current_user)
     ):
         """Supprimer un favori"""
-        if not current_user or not supabase:
-            raise HTTPException(status_code=401, detail="Non authentifié")
-
         try:
-            user_supabase = get_user_scoped_client(current_user["token"])
-            if not user_supabase:
-                raise HTTPException(status_code=500, detail="Client Supabase indisponible")
+            user_supabase = require_user_client(current_user)
 
             user_supabase.table('favorites')\
                 .delete()\
@@ -812,12 +784,12 @@ def run_web():
             ]
         }
 
-    print("🚀 Démarrage du serveur FastAPI...")
-    print("📍 L'API sera accessible sur : http://localhost:8000")
-    print("📚 Documentation interactive : http://localhost:8000/docs")
-    print("🌐 Interface web : http://localhost:8000")
+    print("Je demarre le serveur FastAPI.")
+    print("API: http://localhost:8000")
+    print("Docs: http://localhost:8000/docs")
+    print("Interface: http://localhost:8000")
     if supabase:
-        print("🔐 Authentification Supabase activée")
+        print("Authentification Supabase activee.")
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
 
 
