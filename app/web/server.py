@@ -211,7 +211,7 @@ def run_pyqt():
 def run_web():
     """Lance le backend web FastAPI avec Supabase"""
     if not FASTAPI_AVAILABLE:
-        print("Oups, FastAPI n'est pas installe sur cette machine.")
+        print("FastAPI n'est pas installe sur cette machine.")
         print("Installe-le avec: pip install fastapi uvicorn python-multipart pydantic")
         sys.exit(1)
     
@@ -219,15 +219,15 @@ def run_web():
     SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
     if not SUPABASE_AVAILABLE:
-        print("Supabase n'est pas installe, donc je lance l'app sans authentification.")
+        print("Supabase non disponible, authentification desactivee.")
         print("Pour l'activer: pip install supabase")
         supabase: Optional[Client] = None
     else:
         if SUPABASE_URL and SUPABASE_KEY:
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-            print("Connexion Supabase OK.")
+            print("Supabase connecte.")
         else:
-            print("Variables SUPABASE_URL/SUPABASE_ANON_KEY manquantes, auth desactivee.")
+            print("SUPABASE_URL/SUPABASE_ANON_KEY manquants dans .env, auth desactivee.")
             supabase = None
     
     from app.core.recipes import RecipeDB

@@ -494,23 +494,29 @@ function refreshRecipeDisplay() {
     }),
   };
 
-  let recipeText = `╔════════════════════════════════════════╗\n`;
-  recipeText += `║  ${recipe.name.toUpperCase()}\n`;
-  recipeText += `║  Servings: ${recipe.servings}\n`;
-  recipeText += `╚════════════════════════════════════════╝\n\n`;
-  recipeText += "📦 INGREDIENTS:\n";
-  recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  let html = `<div class="recipe-header">`;
+  html += `<div class="recipe-name">${esc(recipe.name)}</div>`;
+  html += `<div class="recipe-servings">${recipe.servings} portion${recipe.servings > 1 ? "s" : ""}</div>`;
+  html += `</div>`;
+
+  html += `<h3 class="recipe-section-title">📦 Ingrédients</h3>`;
+  html += `<ul class="recipe-ingredients">`;
   recipe.ingredients.forEach((ing) => {
-    recipeText += `  • ${ing.formatted} ${ing.display}\n`;
+    html += `<li><span class="ing-qty">${esc(ing.formatted)}</span> ${esc(ing.display)}</li>`;
   });
-  recipeText += "\n🔬 PROCEDURE:\n";
-  recipeText += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-  recipe.steps.forEach((step, index) => {
-    recipeText += `  ${index + 1}. ${step}\n`;
+  html += `</ul>`;
+
+  html += `<h3 class="recipe-section-title">🔬 Procédure</h3>`;
+  html += `<ol class="recipe-steps">`;
+  recipe.steps.forEach((step) => {
+    html += `<li>${esc(step)}</li>`;
   });
+  html += `</ol>`;
 
   output.className = "recipe-card";
-  output.textContent = recipeText;
+  output.innerHTML = html;
 }
 
 async function predictImage(file) {

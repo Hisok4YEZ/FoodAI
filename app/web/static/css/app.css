@@ -572,9 +572,87 @@
         font-family: "Space Mono", monospace;
         font-size: 0.9rem;
         line-height: 1.8;
-        white-space: pre-wrap;
         overflow-y: auto;
         position: relative;
+      }
+
+      .recipe-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .recipe-name {
+        font-family: "Syne", sans-serif;
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 0.25rem;
+      }
+
+      .recipe-servings {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .recipe-section-title {
+        font-family: "Syne", sans-serif;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--accent-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        margin-top: 1.5rem;
+        margin-bottom: 0.6rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid var(--accent-primary);
+      }
+
+      .recipe-ingredients {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .recipe-ingredients li {
+        padding: 0.3rem 0.5rem;
+        border-left: 2px solid var(--border);
+        font-size: 0.87rem;
+        transition: border-color 0.2s;
+      }
+
+      .recipe-ingredients li:hover {
+        border-left-color: var(--accent-primary);
+      }
+
+      .ing-qty {
+        color: var(--accent-yellow);
+        font-weight: 700;
+      }
+
+      .recipe-steps {
+        padding-left: 1.4rem;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+
+      .recipe-steps li {
+        font-size: 0.87rem;
+        line-height: 1.6;
+      }
+
+      .recipe-steps li::marker {
+        color: var(--accent-secondary);
+        font-weight: 700;
       }
 
       .recipe-card::before {
