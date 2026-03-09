@@ -1,6 +1,5 @@
 # Local env
 .env
-.venv/
 
 # Python cache
 __pycache__/
@@ -11,8 +10,6 @@ __pycache__/
 .DS_Store
 
 # Large local assets
-/data/
-/models/
 
 # Local docs output
 RAPPORT_MODIFICATIONS.pdf
