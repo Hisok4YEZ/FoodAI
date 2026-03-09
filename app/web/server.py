@@ -12,6 +12,9 @@ from uuid import uuid4
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from dotenv import load_dotenv
+import requests
+import math
+import asyncio
 
 # Charge toujours le .env à la racine du projet, peu importe le dossier courant.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -365,6 +368,7 @@ def run_web():
         confidence: float
         top_predictions: List[PredictionResponse]
         servings: int
+        recipe_payload: Optional[RecipeResponse] = None
         created_at: str
 
     class FavoriteCreate(BaseModel):
@@ -800,7 +804,8 @@ def run_web():
                             'predicted_dish': best.label,
                             'confidence': float(best.confidence),
                             'top_predictions': [{'label': p.label, 'confidence': p.confidence} for p in predictions_data],
-                            'servings': servings
+                            'servings': servings,
+                            'recipe_payload': recipe_data.model_dump() if recipe_data else None
                         }).execute()
                         print(f"💾 Scan sauvegardé pour l'utilisateur {current_user['email']}")
                 except Exception as e:
@@ -925,6 +930,7 @@ def run_web():
                     confidence=item['confidence'],
                     top_predictions=[PredictionResponse(**p) for p in item['top_predictions']],
                     servings=item['servings'],
+                    recipe_payload=RecipeResponse(**item['recipe_payload']) if item.get('recipe_payload') else None,
                     created_at=item['created_at']
                 )
                 for item in result.data
@@ -1061,6 +1067,109 @@ def run_web():
     # ============================================
     # ENDPOINTS ADMIN
     # ============================================
+
+    @app.get("/api/supermarkets/nearby")
+    async def get_nearby_supermarkets(lat: float, lon: float):
+        """Trouve le supermarché supporté le plus proche via l'API Overpass"""
+        radius = 5000  # 5km de rayon
+        overpass_url = "http://overpass-api.de/api/interpreter"
+        overpass_query = f"""
+        [out:json];
+        (
+          node["shop"="supermarket"](around:{radius},{lat},{lon});
+          way["shop"="supermarket"](around:{radius},{lat},{lon});
+          relation["shop"="supermarket"](around:{radius},{lat},{lon});
+        );
+        out center;
+        """
+        try:
+            # run requests in thread to avoid blocking event loop
+            response = await asyncio.to_thread(requests.post, overpass_url, data={'data': overpass_query}, timeout=10)
+            data = response.json()
+            
+            supported_chains = {
+                "carrefour": "https://www.carrefour.fr/s?q=",
+                "auchan": "https://www.auchan.fr/recherche?text=",
+                "leclerc": "https://www.leclercdrive.fr/recherche.aspx?q=",
+                "e.leclerc": "https://www.leclercdrive.fr/recherche.aspx?q=",
+                "monoprix": "https://www.monoprix.fr/courses/recherche?q=",
+                "intermarche": "https://www.intermarche.com/recherche/",
+                "intermarché": "https://www.intermarche.com/recherche/",
+                "super u": "https://www.coursesu.com/recherche?q=",
+                "hyper u": "https://www.coursesu.com/recherche?q=",
+                "u express": "https://www.coursesu.com/recherche?q=",
+                "casino": "https://www.casinosupermarches.fr/m/rechercher-un-produit?q=",
+                "franprix": "https://www.franprix.fr/courses/recherche?q=",
+                "lidl": "https://www.lidl.fr/q/search?s=",
+                "aldi": "https://www.aldi.fr/resultats-de-recherche.html?query=",
+                "cora": "https://www.cora.fr/recherche?q=",
+                "match": "https://www.supermarchesmatch.fr/fr/recherche?q=",
+            }
+            
+            print(f"🌍 Recherche Overpass à ({lat}, {lon}) - rayon {radius}m")
+            print(f"📦 Résultats Overpass: {len(data.get('elements', []))} éléments trouvés")
+            
+            closest_supermarket = None
+            min_distance = float('inf')
+            search_url_base = None
+            
+            for element in data.get('elements', []):
+                tags = element.get('tags', {})
+                name = tags.get('name', '')
+                if not name:
+                    continue
+                name_lower = name.lower()
+                
+                matched_chain = None
+                matched_url = None
+                for chain, url in supported_chains.items():
+                    if chain in name_lower:
+                        matched_chain = chain
+                        matched_url = url
+                        break
+                        
+                if matched_chain:
+                    elem_lat = element.get('lat') or element.get('center', {}).get('lat')
+                    elem_lon = element.get('lon') or element.get('center', {}).get('lon')
+                    
+                    if elem_lat and elem_lon:
+                        # Haversine-like approximation for small distances
+                        dx = (lon - elem_lon) * 40000 * math.cos((lat + elem_lat) * math.pi / 360) / 360
+                        dy = (lat - elem_lat) * 40000 / 360
+                        dist = math.sqrt(dx * dx + dy * dy)
+                        
+                        if dist < min_distance:
+                            min_distance = dist
+                            closest_supermarket = name  # Use original name with correct casing
+                            search_url_base = matched_url
+                            
+            if closest_supermarket:
+                print(f"✅ Supermarché trouvé: {closest_supermarket} à {min_distance:.2f}km")
+                return {
+                    "found": True,
+                    "name": closest_supermarket,
+                    "distance_km": round(min_distance, 2),
+                    "search_url_base": search_url_base
+                }
+            else:
+                print("❌ Aucun supermarché supporté trouvé.")
+                if data.get('elements'):
+                    noms = [e.get('tags', {}).get('name') for e in data['elements'][:5]]
+                    print(f"   (Supermarchés vus mais non supportés: {noms})")
+                return {
+                    "found": False,
+                    "name": "Google Shopping (Aucun grand supermarché très proche trouvé)",
+                    "distance_km": None,
+                    "search_url_base": "https://www.google.fr/search?tbm=shop&q="
+                }
+        except Exception as e:
+            print(f"Erreur appel à l'API Overpass: {e}")
+            return {
+                "found": False,
+                "name": "Recherche générique (erreur localisation)",
+                "distance_km": None,
+                "search_url_base": "https://www.google.fr/search?tbm=shop&q="
+            }
 
     @app.post("/api/admin/candidates/ingest")
     async def ingest_candidate(
@@ -1264,12 +1373,12 @@ def run_web():
             return dict(retrain_state)
 
     print("🚀 Démarrage du serveur FastAPI...")
-    print("📍 L'API sera accessible sur : http://localhost:8000")
-    print("📚 Documentation interactive : http://localhost:8000/docs")
-    print("🌐 Interface web : http://localhost:8000")
+    print("📍 L'API sera accessible sur : http://localhost:8080")
+    print("📚 Documentation interactive : http://localhost:8080/docs")
+    print("🌐 Interface web : http://localhost:8080")
     if supabase:
         print("🔐 Authentification Supabase activée")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=8080, reload=False)
 
 
 def main():
