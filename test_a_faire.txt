@@ -1,0 +1,132 @@
+✅ Prérequis (à faire 1 fois)
+
+Depuis AM1_projet/ :
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+
+Vérifier que tout est OK :
+
+python -c "import torch; import torchvision; import PIL; import tqdm; print('OK deps')"
+
+🗓️ Semaine 1 — Recettes + quantités (sans IA)
+✅ Test 1 : récupérer une recette (id exact)
+python -m app.cli.get_recipe --dish pizza --servings 2
+
+✅ Test 2 : récupérer une recette (nom approximatif)
+python -m app.cli.get_recipe --dish "Pizza" --servings 4
+
+✅ Test 3 : tester plusieurs plats Food-101 (recettes)
+python -m app.cli.get_recipe --dish hamburger --servings 2
+python -m app.cli.get_recipe --dish ramen --servings 2
+python -m app.cli.get_recipe --dish spaghetti_bolognese --servings 3
+python -m app.cli.get_recipe --dish caesar_salad --servings 2
+python -m app.cli.get_recipe --dish fried_rice --servings 4
+python -m app.cli.get_recipe --dish omelette --servings 2
+python -m app.cli.get_recipe --dish sushi --servings 2
+python -m app.cli.get_recipe --dish ice_cream --servings 2
+python -m app.cli.get_recipe --dish chocolate_cake --servings 6
+
+✅ Tests unitaires
+
+⚠️ Important : lancer avec PYTHONPATH=. si besoin.
+
+PYTHONPATH=. pytest -q
+
+🗓️ Semaine 2 — Fondations deep learning (points / XOR)
+✅ Générer des points (si script existe)
+python app/week2/generate_points.py
+
+✅ Classifier des points (frontière de décision)
+python app/week2/classifier_points.py
+
+✅ XOR (valider non-linéarité)
+python app/week2/xor_classifier.py
+
+🗓️ Semaine 3 — CNN sur MNIST (images simples)
+✅ Check visuel (charger un chiffre)
+python app/week3/mnist_check.py
+
+✅ Entraîner MNIST (rapide)
+python app/week3/mnist_train.py --epochs 3
+
+
+(option : plus long)
+
+python app/week3/mnist_train.py --epochs 10
+
+🗓️ Semaine 4 — Food-101 : préparer dataset + entraîner modèle plats
+4A) Préparer Food-101 (10 plats)
+
+Si Food-101 est dans Downloads :
+
+python app/week4/prepare_food101_subset.py \
+  --food101 /Users/maywand/Downloads/food-101 \
+  --out data/food101_10 \
+  --mode symlink
+
+
+✅ Vérifier l’arborescence :
+
+ls data/food101_10/train
+ls data/food101_10/val
+ls data/food101_10/test
+
+4B) Lancer un entraînement (modèle ResNet18)
+
+Commande “normale” :
+
+python app/week4/food_train.py \
+  --data data/food101_10 \
+  --epochs 15 \
+  --batch_size 16 \
+  --lr 1e-4
+
+
+👉 Ça produit :
+
+models/model_food.pth
+
+4C) Évaluer sur le test set
+python app/week4/food_testset_eval.py \
+  --model models/model_food.pth \
+  --data data/food101_10
+
+🗓️ Semaine 5 — Inférence terminal : image → top3
+✅ Tester une image Food-101 avec top-3 + recette
+
+Exemple pizza :
+
+python -m app.week4.predict_to_recipe \
+  --image data/food101_10/test/pizza/1001116.jpg \
+  --servings 2 \
+  --min_conf 0.70
+
+✅ Test “automatique” sur une image par classe
+
+Ce test est parfait pour montrer au prof que tout marche :
+
+for c in caesar_salad chocolate_cake fried_rice hamburger ice_cream omelette pizza ramen spaghetti_bolognese sushi; do
+  img=$(ls "data/food101_10/test/$c" | head -n 1)
+  echo "==================== $c | $img ===================="
+  python -m app.week4.predict_to_recipe --image "data/food101_10/test/$c/$img" --servings 2 --min_conf 0.70
+done
+
+✅ Test “hard” (les 3 cas où ça bugguait avant)
+python -m app.week4.predict_to_recipe --image data/food101_10/test/hamburger/1010136.jpg --servings 2 --min_conf 0.70
+python -m app.week4.predict_to_recipe --image data/food101_10/test/omelette/1019294.jpg --servings 2 --min_conf 0.70
+python -m app.week4.predict_to_recipe --image data/food101_10/test/ramen/1000325.jpg --servings 2 --min_conf 0.70
+
+🗓️ Semaine 6 — Interface PyQt (démo finale)
+✅ Lancer l’application
+python -m app.week5.gui
+
+
+Puis :
+
+choisir une image dans data/food101_10/test/...
+
+regarder top-3, confiance, recette et quantités

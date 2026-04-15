@@ -1,0 +1,25 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\david\OneDrive\Documents\AM1_projet (1)\AM1_projet
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.12.1
+collected 2 items
+
+tests\test_recipes_basic.py F.                                           [100%]
+
+================================== FAILURES ===================================
+_____________________________ test_load_and_find ______________________________
+
+    def test_load_and_find():
+        db = RecipeDB.load()
+        assert len(db.dishes) >= 1
+    
+        d1 = db.find_dish("pizza_margherita")
+>       assert d1 is not None
+E       assert None is not None
+
+tests\test_recipes_basic.py:8: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_recipes_basic.py::test_load_and_find - assert None is not None
+========================= 1 failed, 1 passed in 0.10s =========================
