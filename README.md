@@ -79,3 +79,6 @@ python -m pip install torch torchvision
 - Markdown: `AM1_projet/RAPPORT_MODIFICATIONS.md`
 - PDF: `AM1_projet/RAPPORT_MODIFICATIONS.pdf`
 - PDF README: `AM1_projet/README.pdf`
+
+## Mobile
+- Guide de migration mobile: `MOBILE_APP_GUIDE.md`
