@@ -1,7 +1,6 @@
 const SUPABASE_URL = window.__APP_CONFIG__?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.__APP_CONFIG__?.SUPABASE_ANON_KEY || "";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const API_URL = window.location.origin;
 
 const API_URL = window.location.origin;
 let currentUser = null;

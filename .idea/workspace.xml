@@ -1,9 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="7ec71536-5e56-4123-9157-0b5f526358e6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/AM1_projet.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AM1_projet.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/web/static/js/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/web/static/js/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week2/classifier_points.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week2/decision_boundary.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week2/generate_points.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week2/tensors_basics.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week2/xor_classifier.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week3/mnist_check.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week3/mnist_confusion.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week3/mnist_predict.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week3/mnist_train.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week4/food_predict.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week4/food_testset_eval.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week4/food_train.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week4/predict_to_recipe.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week4/prepare_food101_subset.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week5/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week5/gui.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/week5/predictor.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -11,7 +33,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="10131" />
+    <option name="cachedIndexableFilesCount" value="10861" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -20,10 +42,10 @@
     <commands />
     <urls />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 0,
-  "fromUser": false
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0,
+  &quot;fromUser&quot;: false
+}</component>
   <component name="ProjectId" id="3COiQwOJNXmWcUKDrM2d3XVTUQ2" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -38,9 +60,13 @@
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "david",
+    "git-widget-placeholder": "hanni",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "/home/damiche-hani/Desktop/fac/projet/projet/FoodAI",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "to.speed.mode.migration.done": "true"
   }
