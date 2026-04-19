@@ -17,6 +17,52 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
 
+def _fetch_supermarkets_from_overpass(
+    lat: float, lon: float, radius: int,
+) -> tuple[dict | None, str | None]:
+    """Interroge OpenStreetMap via Overpass. Plusieurs serveurs en secours (HTTP peut échouer)."""
+    overpass_query = f"""
+[out:json];
+(
+  node["shop"="supermarket"](around:{radius},{lat},{lon});
+  way["shop"="supermarket"](around:{radius},{lat},{lon});
+  relation["shop"="supermarket"](around:{radius},{lat},{lon});
+);
+out center;
+"""
+    endpoints = (
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.openstreetmap.fr/api/interpreter",
+    )
+    headers = {"User-Agent": "FoodAI/1.0 (supermarket nearby lookup)"}
+    last_error: str | None = None
+    for url in endpoints:
+        try:
+            response = requests.post(
+                url,
+                data={"data": overpass_query},
+                headers=headers,
+                timeout=30,
+            )
+            if response.status_code != 200:
+                last_error = f"{url} → HTTP {response.status_code}"
+                continue
+            data = response.json()
+            if "elements" not in data:
+                last_error = "réponse Overpass sans clé « elements »"
+                continue
+            remark = data.get("remark") or ""
+            if "error" in remark.lower() or "timeout" in remark.lower():
+                last_error = remark.strip()[:300] or "erreur Overpass (remark)"
+                continue
+            return data, None
+        except requests.RequestException as exc:
+            last_error = f"{url}: {exc}"
+        except ValueError as exc:
+            last_error = f"JSON invalide ({url}): {exc}"
+    return None, last_error or "Overpass indisponible"
+
+
 # Imports FastAPI au niveau module pour éviter les ForwardRef
 try:
     from fastapi import FastAPI, File, HTTPException, UploadFile, Depends, Header, Body
@@ -816,42 +862,30 @@ def run_web():
             ]
         }
 
-    print("Je demarre le serveur FastAPI.")
-    print("API: http://localhost:8000")
-    print("Docs: http://localhost:8000/docs")
-    print("Interface: http://localhost:8000")
-    if supabase:
-        print("Authentification Supabase activee.")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
-    # ============================================
-    # ENDPOINTS ADMIN
-    # ============================================
-
     @app.get("/api/supermarkets/nearby")
     async def get_nearby_supermarkets(lat: float, lon: float):
         """Trouve le supermarché supporté le plus proche via l'API Overpass"""
         radius = 5000  # 5km de rayon
-        overpass_url = "http://overpass-api.de/api/interpreter"
-        overpass_query = f"""
-        [out:json];
-        (
-          node["shop"="supermarket"](around:{radius},{lat},{lon});
-          way["shop"="supermarket"](around:{radius},{lat},{lon});
-          relation["shop"="supermarket"](around:{radius},{lat},{lon});
-        );
-        out center;
-        """
         try:
-            # run requests in thread to avoid blocking event loop
-            response = await asyncio.to_thread(requests.post, overpass_url, data={'data': overpass_query}, timeout=10)
-            data = response.json()
-            
+            data, overpass_err = await asyncio.to_thread(
+                _fetch_supermarkets_from_overpass, lat, lon, radius
+            )
+            if data is None:
+                print(f"Erreur Overpass (tous les serveurs): {overpass_err}")
+                return {
+                    "found": False,
+                    "name": "Recherche générique (carte OpenStreetMap indisponible)",
+                    "distance_km": None,
+                    "search_url_base": "https://www.google.fr/search?tbm=shop&q=",
+                }
+
             supported_chains = {
                 "carrefour": "https://www.carrefour.fr/s?q=",
                 "auchan": "https://www.auchan.fr/recherche?text=",
                 "leclerc": "https://www.leclercdrive.fr/recherche.aspx?q=",
                 "e.leclerc": "https://www.leclercdrive.fr/recherche.aspx?q=",
-                "monoprix": "https://www.monoprix.fr/courses/recherche?q=",
+                # Drive en ligne : /search?q= lance la recherche (l’ancien /courses/recherche sur www préremplit seulement le champ)
+                "monoprix": "https://courses.monoprix.fr/search?q=",
                 "intermarche": "https://www.intermarche.com/recherche/",
                 "intermarché": "https://www.intermarche.com/recherche/",
                 "super u": "https://www.coursesu.com/recherche?q=",
@@ -864,21 +898,21 @@ def run_web():
                 "cora": "https://www.cora.fr/recherche?q=",
                 "match": "https://www.supermarchesmatch.fr/fr/recherche?q=",
             }
-            
+
             print(f"🌍 Recherche Overpass à ({lat}, {lon}) - rayon {radius}m")
             print(f"📦 Résultats Overpass: {len(data.get('elements', []))} éléments trouvés")
-            
+
             closest_supermarket = None
             min_distance = float('inf')
             search_url_base = None
-            
+
             for element in data.get('elements', []):
                 tags = element.get('tags', {})
                 name = tags.get('name', '')
                 if not name:
                     continue
                 name_lower = name.lower()
-                
+
                 matched_chain = None
                 matched_url = None
                 for chain, url in supported_chains.items():
@@ -886,22 +920,22 @@ def run_web():
                         matched_chain = chain
                         matched_url = url
                         break
-                        
+
                 if matched_chain:
                     elem_lat = element.get('lat') or element.get('center', {}).get('lat')
                     elem_lon = element.get('lon') or element.get('center', {}).get('lon')
-                    
+
                     if elem_lat and elem_lon:
                         # Haversine-like approximation for small distances
                         dx = (lon - elem_lon) * 40000 * math.cos((lat + elem_lat) * math.pi / 360) / 360
                         dy = (lat - elem_lat) * 40000 / 360
                         dist = math.sqrt(dx * dx + dy * dy)
-                        
+
                         if dist < min_distance:
                             min_distance = dist
                             closest_supermarket = name  # Use original name with correct casing
                             search_url_base = matched_url
-                            
+
             if closest_supermarket:
                 print(f"✅ Supermarché trouvé: {closest_supermarket} à {min_distance:.2f}km")
                 return {
@@ -922,222 +956,21 @@ def run_web():
                     "search_url_base": "https://www.google.fr/search?tbm=shop&q="
                 }
         except Exception as e:
-            print(f"Erreur appel à l'API Overpass: {e}")
+            print(f"Erreur inattendue /api/supermarkets/nearby: {e}")
             return {
                 "found": False,
-                "name": "Recherche générique (erreur localisation)",
+                "name": "Recherche générique (erreur serveur)",
                 "distance_km": None,
                 "search_url_base": "https://www.google.fr/search?tbm=shop&q="
             }
 
-    @app.post("/api/admin/candidates/ingest")
-    async def ingest_candidate(
-        payload: CandidateIngest,
-        _admin_ok = Depends(require_admin)
-    ):
-        """Ingestion d'un candidat plat (image + recette proposée)."""
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        dish_name = payload.dish_name.strip()
-        if not dish_name:
-            raise HTTPException(status_code=400, detail="dish_name requis")
-
-        is_new = not dish_exists_in_catalog(dish_name)
-        if not is_new and not payload.insert_known:
-            return {
-                "message": "Plat déjà connu: candidat ignoré",
-                "is_new_dish": False,
-                "candidate": None,
-            }
-
-        data = {
-            "dish_name": dish_name,
-            "source_keyword": payload.source_keyword,
-            "servings": payload.servings,
-            "image_url": payload.image_url,
-            "notes": payload.notes,
-            "recipe_payload": payload.recipe.model_dump() if payload.recipe else None,
-            "is_new_dish": is_new,
-            "status": "approved" if payload.auto_approve else "pending",
-            "added_to_training": False,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        try:
-            result = admin_client.table("dish_candidates").insert(data).execute()
-            return {"message": "Candidate ajouté", "is_new_dish": is_new, "candidate": (result.data or [None])[0]}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.post("/api/admin/candidates/ingest/batch")
-    async def ingest_candidates_batch(
-        payload: CandidateBatchIngest,
-        _admin_ok = Depends(require_admin)
-    ):
-        """Ingestion batch pour plusieurs candidats d'un coup."""
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        rows: List[Dict[str, Any]] = []
-        skipped_invalid = 0
-        skipped_known = 0
-
-        for candidate in payload.candidates:
-            dish_name = candidate.dish_name.strip()
-            if not dish_name:
-                skipped_invalid += 1
-                continue
-
-            is_new = not dish_exists_in_catalog(dish_name)
-            if not is_new and not candidate.insert_known:
-                skipped_known += 1
-                continue
-
-            rows.append({
-                "dish_name": dish_name,
-                "source_keyword": candidate.source_keyword,
-                "servings": candidate.servings,
-                "image_url": candidate.image_url,
-                "notes": candidate.notes,
-                "recipe_payload": candidate.recipe.model_dump() if candidate.recipe else None,
-                "is_new_dish": is_new,
-                "status": "approved" if candidate.auto_approve else "pending",
-                "added_to_training": False,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-
-        if not rows:
-            return {
-                "message": "Aucun candidat inséré",
-                "inserted_count": 0,
-                "skipped_invalid": skipped_invalid,
-                "skipped_known": skipped_known,
-            }
-
-        try:
-            result = admin_client.table("dish_candidates").insert(rows).execute()
-            inserted = result.data or []
-            return {
-                "message": "Batch candidats inséré",
-                "inserted_count": len(inserted),
-                "skipped_invalid": skipped_invalid,
-                "skipped_known": skipped_known,
-                "candidates": inserted,
-            }
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.get("/api/admin/candidates")
-    async def list_admin_candidates(
-        status: Optional[str] = None,
-        limit: int = 200,
-        _admin_ok = Depends(require_admin)
-    ):
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        try:
-            query = admin_client.table("dish_candidates").select("*").order("created_at", desc=True).limit(limit)
-            if status:
-                query = query.eq("status", status)
-            result = query.execute()
-            return result.data or []
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.patch("/api/admin/candidates/{candidate_id}")
-    async def update_admin_candidate(
-        candidate_id: str,
-        updates: CandidateUpdate = Body(...),
-        _admin_ok = Depends(require_admin)
-    ):
-        admin_client = get_admin_client()
-        if not admin_client:
-            raise HTTPException(status_code=503, detail="Supabase non configuré")
-
-        update_data = updates.model_dump(exclude_unset=True)
-        if not update_data:
-            raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
-
-        try:
-            result = admin_client.table("dish_candidates").update(update_data).eq("id", candidate_id).execute()
-            return {"message": "Candidate mis à jour", "candidate": (result.data or [None])[0]}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.post("/api/admin/retrain/incremental")
-    async def trigger_incremental_retrain(
-        payload: IncrementalRetrainRequest = Body(...),
-        _admin_ok = Depends(require_admin),
-    ):
-        with retrain_lock:
-            if retrain_state.get("status") == "running":
-                raise HTTPException(status_code=409, detail="Un retrain est déjà en cours")
-
-        limit_candidates = max(1, min(payload.limit_candidates, 500))
-        epochs = max(1, min(payload.epochs, 20))
-        replay_per_class = max(0, min(payload.replay_per_class, 200))
-
-        candidates = list_approved_candidates_for_retrain(limit_candidates)
-        if not candidates:
-            raise HTTPException(status_code=400, detail="Aucun candidat approuvé disponible")
-
-        batch_info = build_incremental_batch(candidates)
-        if batch_info["downloaded_count"] <= 0:
-            raise HTTPException(status_code=400, detail="Aucune image exploitable téléchargée depuis les candidats")
-
-        job_id = datetime.now(timezone.utc).strftime("job_%Y%m%d_%H%M%S")
-        update_retrain_state(
-            status="queued",
-            job_id=job_id,
-            started_at=None,
-            finished_at=None,
-            message="Retrain en file d'attente",
-            downloaded_images=batch_info["downloaded_count"],
-            candidates_count=len(batch_info["candidate_ids"]),
-            batch_dir=batch_info["batch_dir"],
-            last_stdout_tail=None,
-            last_stderr_tail=None,
-        )
-
-        worker = threading.Thread(
-            target=run_incremental_retrain_worker,
-            args=(
-                job_id,
-                batch_info["batch_dir"],
-                batch_info["candidate_ids"],
-                epochs,
-                replay_per_class,
-            ),
-            daemon=True,
-        )
-        worker.start()
-
-        return {
-            "message": "Retrain incrémental lancé",
-            "job_id": job_id,
-            "downloaded_images": batch_info["downloaded_count"],
-            "candidates_count": len(batch_info["candidate_ids"]),
-            "batch_dir": batch_info["batch_dir"],
-            "class_counts": batch_info["class_counts"],
-        }
-
-    @app.get("/api/admin/retrain/status")
-    async def get_incremental_retrain_status(_admin_ok = Depends(require_admin)):
-        with retrain_lock:
-            return dict(retrain_state)
-
-    print("🚀 Démarrage du serveur FastAPI...")
-    print("📍 L'API sera accessible sur : http://localhost:8080")
-    print("📚 Documentation interactive : http://localhost:8080/docs")
-    print("🌐 Interface web : http://localhost:8080")
+    print("Je demarre le serveur FastAPI.")
+    print("API: http://localhost:8000")
+    print("Docs: http://localhost:8000/docs")
+    print("Interface: http://localhost:8000")
     if supabase:
-        print("🔐 Authentification Supabase activée")
-    uvicorn.run(app, host="0.0.0.0", port=8080, reload=False)
+        print("Authentification Supabase activee.")
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
 
 
 def main():

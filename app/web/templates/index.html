@@ -200,7 +200,7 @@
 
             <div class="control-group" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
               <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem;">📍 Localisation</h3>
-              <button class="btn-location" id="btnLocation" onclick="detectLocation()" style="width: 100%; padding: 0.6rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s;">
+              <button type="button" class="btn-location" id="btnLocation" style="width: 100%; padding: 0.6rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                 Trouver un supermarché
               </button>
@@ -251,6 +251,6 @@
         SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
       };
     </script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=__ASSET_VERSION__"></script>
   </body>
 </html>

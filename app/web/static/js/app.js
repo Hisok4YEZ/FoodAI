@@ -537,6 +537,7 @@ async function detectLocation() {
 
   statusDiv.textContent = "Recherche de la position...";
   btn.disabled = true;
+  resultDiv.style.display = "none";
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
@@ -545,6 +546,9 @@ async function detectLocation() {
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         const res = await fetch(`${API_URL}/api/supermarkets/nearby?lat=${lat}&lon=${lon}`);
+        if (!res.ok) {
+          throw new Error(`Supermarket lookup failed: ${res.status}`);
+        }
         const data = await res.json();
 
         currentSupermarket = data;
@@ -570,11 +574,31 @@ async function detectLocation() {
       }
     },
     (err) => {
-      statusDiv.textContent = "Impossible d'obtenir la position. Veuillez l'autoriser.";
+      currentSupermarket = null;
+      switch (err.code) {
+        case err.PERMISSION_DENIED:
+          statusDiv.textContent = "Accès à la localisation refusé. Autorise-la dans le navigateur pour trouver le magasin le plus proche.";
+          break;
+        case err.POSITION_UNAVAILABLE:
+          statusDiv.textContent = "Localisation indisponible. Active le GPS ou la localisation de l'appareil puis réessaie.";
+          break;
+        case err.TIMEOUT:
+          statusDiv.textContent = "La localisation a expiré. Réessaie dans un endroit mieux couvert.";
+          break;
+        default:
+          statusDiv.textContent = "Impossible d'obtenir la position. Vérifie l'autorisation et que la localisation est bien active.";
+      }
       btn.disabled = false;
-    }
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    },
   );
 }
+
+window.detectLocation = detectLocation;
 
 async function handleImageUpload(event) {
   const file = event.target.files[0];
@@ -788,6 +812,13 @@ function refreshRecipeDisplay() {
 }
 
 window.addEventListener("load", () => {
+  const btnLocation = document.getElementById("btnLocation");
+  if (btnLocation) {
+    btnLocation.addEventListener("click", () => {
+      detectLocation();
+    });
+  }
+
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".user-menu")) {
       document.getElementById("userDropdown").classList.remove("show");

@@ -41,8 +41,11 @@ Créer `AM1_projet/.env`:
 ```env
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
-SUPABASE_IMAGE_BUCKET=scan-images
+SUPABASE_REDIRECT_URL=foodai://login-callback/
+SUPABASE_IMAGE_BUCKET=food-images
 ```
+
+Le backend n'a pas besoin de `SUPABASE_SERVICE_ROLE_KEY`.
 
 ## Lancer l'application
 
