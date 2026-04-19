@@ -12,6 +12,8 @@ import requests
 import math
 import asyncio
 
+from app.ml.predictor import FoodPredictor
+
 # Charge toujours le .env à la racine du projet, peu importe le dossier courant.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
